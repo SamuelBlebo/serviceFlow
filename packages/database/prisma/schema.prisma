@@ -1,0 +1,705 @@
+// Home Service — Prisma schema
+// Ghana-first home-services marketplace.
+// Conventions:
+//  - UUID primary keys everywhere.
+//  - createdAt/updatedAt on every model that changes over time.
+//  - Soft delete (deletedAt) on financial, booking, and audit records — never hard-deleted.
+//  - Money stored as Decimal(10,2) in GHS (pesewas handled at the application layer if needed).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────────────────
+
+enum Role {
+  CUSTOMER
+  TECHNICIAN
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  SUSPENDED
+}
+
+/// Explicit booking lifecycle. Transitions are validated in the application
+/// layer (see BookingStateMachine) — this enum only declares the possible
+/// states. Do not infer allowed transitions from the declaration order.
+enum BookingStatus {
+  REQUESTED
+  MATCHING
+  OFFERED
+  ACCEPTED
+  EN_ROUTE
+  ARRIVED
+  IN_PROGRESS
+  COMPLETED
+  CUSTOMER_CONFIRMED
+  PAID
+  CANCELLED
+  DISPUTED
+}
+
+enum PreferredTime {
+  ASAP
+  TODAY
+  TOMORROW
+  SCHEDULED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentMethod {
+  MOBILE_MONEY
+  CARD
+  CASH
+}
+
+enum CommissionScope {
+  GLOBAL
+  SERVICE
+  TECHNICIAN
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+/// Ledger entry direction/purpose. The Wallet's cached balances are derived
+/// from the sum of WalletTransaction rows — rows are append-only.
+enum WalletTransactionType {
+  EARNING_CREDIT
+  COMMISSION_DEBIT
+  WITHDRAWAL_DEBIT
+  WITHDRAWAL_REVERSAL_CREDIT
+  ADJUSTMENT_CREDIT
+  ADJUSTMENT_DEBIT
+}
+
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  REJECTED
+}
+
+enum DisputeRaisedBy {
+  CUSTOMER
+  TECHNICIAN
+}
+
+enum NotificationChannel {
+  PUSH
+  WHATSAPP
+  SMS
+  EMAIL
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  READ
+}
+
+enum MessageChannel {
+  WHATSAPP
+  IN_APP
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  DOCUMENT
+}
+
+enum MediaContext {
+  BOOKING_PROBLEM
+  WORK_PORTFOLIO
+  VERIFICATION_ID
+  VERIFICATION_SELFIE
+  PROFILE_PHOTO
+}
+
+/// WhatsApp conversation state — mirrors the flow in section 17 of the spec.
+enum ConversationState {
+  START
+  SELECT_SERVICE
+  DESCRIBE_PROBLEM
+  LOCATION
+  TIME
+  MATCHING
+  SELECT_TECHNICIAN
+  CONFIRM_BOOKING
+  BOOKING_CREATED
+  ENDED
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// IDENTITY
+// ─────────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String     @id @default(uuid())
+  phone        String     @unique // E.164, e.g. +233241234567
+  email        String?    @unique
+  passwordHash String? // set for ADMIN users; customers/technicians authenticate via OTP
+  role         Role
+  status       UserStatus @default(ACTIVE)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  customerProfile    CustomerProfile?
+  technicianProfile  TechnicianProfile?
+  otpCodes           OtpCode[]
+  sentMessages       Message[]           @relation("MessageSender")
+  receivedMessages   Message[]           @relation("MessageReceiver")
+  notifications      Notification[]
+  adminActions       AdminAction[]       @relation("AdminActionActor")
+  reviewedVerifications TechnicianVerification[] @relation("VerificationReviewer")
+  resolvedDisputes   Dispute[]           @relation("DisputeResolver")
+  raisedDisputes     Dispute[]           @relation("DisputeRaiser")
+  uploadedMedia      Media[]
+  cancelledBookings  Booking[]           @relation("BookingCancelledBy")
+  statusChangesMade  BookingStatusHistory[] @relation("StatusChangedBy")
+
+  @@index([role])
+}
+
+/// Short-lived OTP codes for phone-based authentication (customers & technicians).
+model OtpCode {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  codeHash  String
+  purpose   String // e.g. "LOGIN", "PHONE_VERIFICATION"
+  expiresAt DateTime
+  consumedAt DateTime?
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([userId, purpose])
+}
+
+model CustomerProfile {
+  id        String  @id @default(uuid())
+  userId    String  @unique
+  user      User    @relation(fields: [userId], references: [id])
+  fullName  String
+  defaultAddress String?
+  defaultLat     Float?
+  defaultLng     Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  bookings  Booking[]
+  ratings   Rating[]
+  disputesRaisedAsCustomer Dispute[] @relation("CustomerDisputes")
+
+  @@index([userId])
+}
+
+model TechnicianProfile {
+  id       String @id @default(uuid())
+  userId   String @unique
+  user     User   @relation(fields: [userId], references: [id])
+  fullName String
+  profilePhotoUrl String?
+  bio             String?
+  yearsExperience Int      @default(0)
+
+  verificationStatus VerificationStatus @default(PENDING)
+  isAvailable        Boolean            @default(false) // technician-controlled "online" toggle
+
+  // Cached ranking/matching signals — recomputed by the Matching/Rating services,
+  // never edited directly by the client.
+  averageRating    Float @default(0)
+  completedJobs    Int   @default(0)
+  cancelledJobs    Int   @default(0)
+  offeredJobs      Int   @default(0) // jobs offered to this technician (for response rate)
+  respondedJobs    Int   @default(0) // offers accepted or declined within SLA (for response rate)
+
+  // Current location is optional and only set when the technician is en route
+  // to a job — no continuous background tracking (see spec §16).
+  currentLat Float?
+  currentLng Float?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  verifications   TechnicianVerification[]
+  services        TechnicianService[]
+  serviceAreas    ServiceArea[]
+  availability    Availability[]
+  bookings        Booking[]
+  wallet          Wallet?
+  payouts         Payout[]
+  ratings         Rating[]
+  media           Media[]
+  commissionRules Commission[]
+  disputesRaisedAsTechnician Dispute[] @relation("TechnicianDisputes")
+
+  @@index([verificationStatus, isAvailable])
+}
+
+model TechnicianVerification {
+  id                   String             @id @default(uuid())
+  technicianProfileId  String
+  technicianProfile    TechnicianProfile  @relation(fields: [technicianProfileId], references: [id])
+
+  governmentIdType     String // e.g. "GHANA_CARD", "PASSPORT", "DRIVERS_LICENSE"
+  governmentIdNumber   String
+  governmentIdPhotoUrl String
+  selfiePhotoUrl       String?
+
+  status        VerificationStatus @default(PENDING)
+  reviewNotes   String?
+  reviewedById  String?
+  reviewedBy    User?              @relation("VerificationReviewer", fields: [reviewedById], references: [id])
+
+  submittedAt DateTime  @default(now())
+  reviewedAt  DateTime?
+
+  @@index([technicianProfileId, status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// SERVICES (admin-managed — never hard-coded in application logic)
+// ─────────────────────────────────────────────────────────────────────────
+
+model Service {
+  id            String  @id @default(uuid())
+  name          String  @unique // "Plumbing", "Electrical", "AC Repair & Maintenance", ...
+  slug          String  @unique
+  description   String?
+  iconUrl       String?
+  basePriceMin  Decimal @db.Decimal(10, 2)
+  basePriceMax  Decimal @db.Decimal(10, 2)
+  isActive      Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  technicians TechnicianService[]
+  bookings    Booking[]
+  commissionRules Commission[]
+
+  @@index([isActive])
+}
+
+model TechnicianService {
+  id                  String            @id @default(uuid())
+  technicianProfileId String
+  technicianProfile   TechnicianProfile @relation(fields: [technicianProfileId], references: [id])
+  serviceId           String
+  service             Service           @relation(fields: [serviceId], references: [id])
+  yearsExperience     Int               @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@unique([technicianProfileId, serviceId])
+  @@index([serviceId])
+}
+
+model ServiceArea {
+  id                  String            @id @default(uuid())
+  technicianProfileId String
+  technicianProfile   TechnicianProfile @relation(fields: [technicianProfileId], references: [id])
+  name                String // e.g. "East Legon", "Osu"
+  centerLat           Float
+  centerLng           Float
+  radiusKm            Float             @default(10)
+
+  createdAt DateTime @default(now())
+
+  @@index([technicianProfileId])
+}
+
+model Availability {
+  id                  String            @id @default(uuid())
+  technicianProfileId String
+  technicianProfile   TechnicianProfile @relation(fields: [technicianProfileId], references: [id])
+  dayOfWeek           Int // 0 = Sunday .. 6 = Saturday
+  startTime           String // "HH:mm", 24h
+  endTime              String // "HH:mm", 24h
+  isActive            Boolean           @default(true)
+
+  @@index([technicianProfileId, dayOfWeek])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// BOOKINGS
+// ─────────────────────────────────────────────────────────────────────────
+
+model Booking {
+  id         String  @id @default(uuid())
+  customerId String
+  customer   CustomerProfile @relation(fields: [customerId], references: [id])
+
+  technicianId String?
+  technician   TechnicianProfile? @relation(fields: [technicianId], references: [id])
+
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id])
+
+  status BookingStatus @default(REQUESTED)
+
+  problemDescription String
+  locationAddress    String?
+  locationLat        Float
+  locationLng        Float
+  locationNotes      String?
+
+  preferredTime PreferredTime
+  scheduledAt   DateTime?
+
+  estimatedPriceMin Decimal? @db.Decimal(10, 2)
+  estimatedPriceMax Decimal? @db.Decimal(10, 2)
+  finalPrice        Decimal? @db.Decimal(10, 2)
+
+  // Commission percent is snapshotted onto the booking at confirmation time so
+  // later changes to global/service/technician commission never rewrite history.
+  commissionPercentSnapshot Decimal? @db.Decimal(5, 2)
+
+  cancelledAt       DateTime?
+  cancelledById     String?
+  cancelledBy       User?     @relation("BookingCancelledBy", fields: [cancelledById], references: [id])
+  cancellationReason String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime? // soft delete only — booking records are never hard-deleted
+
+  statusHistory BookingStatusHistory[]
+  payment       Payment?
+  rating        Rating?
+  disputes      Dispute[]
+  messages      Message[]
+  media         Media[]
+
+  @@index([customerId])
+  @@index([technicianId])
+  @@index([status])
+  @@index([serviceId])
+}
+
+/// Append-only audit trail of every status transition. Never updated in place.
+model BookingStatusHistory {
+  id            String        @id @default(uuid())
+  bookingId     String
+  booking       Booking       @relation(fields: [bookingId], references: [id])
+  fromStatus    BookingStatus?
+  toStatus      BookingStatus
+  changedById   String?
+  changedBy     User?         @relation("StatusChangedBy", fields: [changedById], references: [id])
+  note          String?
+  createdAt     DateTime      @default(now())
+
+  @@index([bookingId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// PAYMENTS, COMMISSION, PAYOUTS, WALLET
+// ─────────────────────────────────────────────────────────────────────────
+
+model Payment {
+  id        String        @id @default(uuid())
+  bookingId String        @unique
+  booking   Booking       @relation(fields: [bookingId], references: [id])
+
+  amount             Decimal       @db.Decimal(10, 2)
+  currency            String        @default("GHS")
+  status               PaymentStatus @default(PENDING)
+  commissionAmount     Decimal       @db.Decimal(10, 2)
+  technicianNetAmount  Decimal       @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  transactions PaymentTransaction[]
+
+  @@index([status])
+}
+
+/// One row per provider attempt (initiate/verify/refund) — Payment is the
+/// logical invoice, PaymentTransaction is the immutable attempt log.
+model PaymentTransaction {
+  id                 String        @id @default(uuid())
+  paymentId          String
+  payment            Payment       @relation(fields: [paymentId], references: [id])
+  provider            String // "mock" | "paystack" | "flutterwave" | "hubtel" ...
+  providerReference   String?
+  method              PaymentMethod
+  status              PaymentStatus
+  rawResponse         Json?
+  attemptedAt         DateTime      @default(now())
+  completedAt         DateTime?
+
+  @@index([paymentId])
+  @@index([providerReference])
+}
+
+/// Configurable commission rules. Precedence at lookup time:
+/// TECHNICIAN-scoped > SERVICE-scoped > GLOBAL. Never hard-coded in code.
+model Commission {
+  id                  String            @id @default(uuid())
+  scope               CommissionScope
+  serviceId           String?
+  service             Service?          @relation(fields: [serviceId], references: [id])
+  technicianProfileId String?
+  technicianProfile   TechnicianProfile? @relation(fields: [technicianProfileId], references: [id])
+  percent             Decimal           @db.Decimal(5, 2)
+  isActive            Boolean           @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([scope, isActive])
+}
+
+model Wallet {
+  id                  String            @id @default(uuid())
+  technicianProfileId String            @unique
+  technicianProfile   TechnicianProfile @relation(fields: [technicianProfileId], references: [id])
+
+  // Cached balances — always re-derivable from WalletTransaction; treat these
+  // as a read-optimization, never write them directly outside the ledger service.
+  availableBalance Decimal @db.Decimal(10, 2) @default(0)
+  pendingBalance   Decimal @db.Decimal(10, 2) @default(0)
+  totalEarnings    Decimal @db.Decimal(10, 2) @default(0)
+  currency         String  @default("GHS")
+
+  updatedAt DateTime @updatedAt
+
+  transactions WalletTransaction[]
+  payouts      Payout[]
+
+  @@index([technicianProfileId])
+}
+
+/// Immutable ledger. Rows are never updated or deleted — corrections are made
+/// with a new offsetting ADJUSTMENT row, preserving a full audit trail.
+model WalletTransaction {
+  id           String                @id @default(uuid())
+  walletId     String
+  wallet       Wallet                @relation(fields: [walletId], references: [id])
+  type         WalletTransactionType
+  amount       Decimal               @db.Decimal(10, 2) // always positive; `type` encodes direction
+  balanceAfter Decimal               @db.Decimal(10, 2)
+  bookingId    String?
+  payoutId     String?
+  payout       Payout?               @relation(fields: [payoutId], references: [id])
+  description  String?
+  createdAt    DateTime              @default(now())
+
+  @@index([walletId, createdAt])
+  @@index([bookingId])
+}
+
+model Payout {
+  id                  String            @id @default(uuid())
+  walletId            String
+  wallet              Wallet            @relation(fields: [walletId], references: [id])
+  technicianProfileId String
+  technicianProfile   TechnicianProfile @relation(fields: [technicianProfileId], references: [id])
+
+  amount            Decimal      @db.Decimal(10, 2)
+  status            PayoutStatus @default(PENDING)
+  method            String? // e.g. "MTN_MOMO", "VODAFONE_CASH", "AIRTELTIGO_MONEY"
+  providerReference String?
+  failureReason     String?
+
+  requestedAt DateTime  @default(now())
+  processedAt DateTime?
+
+  transactions WalletTransaction[]
+
+  @@index([technicianProfileId, status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// TRUST: RATINGS, REVIEWS, DISPUTES
+// ─────────────────────────────────────────────────────────────────────────
+
+model Rating {
+  id           String            @id @default(uuid())
+  bookingId    String            @unique
+  booking      Booking           @relation(fields: [bookingId], references: [id])
+  customerId   String
+  customer     CustomerProfile   @relation(fields: [customerId], references: [id])
+  technicianId String
+  technician   TechnicianProfile @relation(fields: [technicianId], references: [id])
+  score        Int // 1..5, validated in application layer
+
+  createdAt DateTime @default(now())
+
+  review Review?
+
+  @@index([technicianId])
+}
+
+model Review {
+  id       String @id @default(uuid())
+  ratingId String @unique
+  rating   Rating @relation(fields: [ratingId], references: [id])
+  comment  String
+
+  createdAt DateTime @default(now())
+}
+
+model Dispute {
+  id        String          @id @default(uuid())
+  bookingId String
+  booking   Booking         @relation(fields: [bookingId], references: [id])
+
+  raisedBy       DisputeRaisedBy
+  raisedByUserId String
+  raisedByUser   User            @relation("DisputeRaiser", fields: [raisedByUserId], references: [id])
+
+  // Denormalized convenience links for admin querying by customer/technician.
+  customerId   String?
+  customer     CustomerProfile?   @relation("CustomerDisputes", fields: [customerId], references: [id])
+  technicianId String?
+  technician   TechnicianProfile? @relation("TechnicianDisputes", fields: [technicianId], references: [id])
+
+  description     String
+  technicianResponse String?
+  status          DisputeStatus @default(OPEN)
+  resolutionNotes String?
+  refundAmount    Decimal?      @db.Decimal(10, 2)
+
+  resolvedById String?
+  resolvedBy   User?   @relation("DisputeResolver", fields: [resolvedById], references: [id])
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  resolvedAt DateTime?
+
+  @@index([status])
+  @@index([bookingId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// COMMUNICATION
+// ─────────────────────────────────────────────────────────────────────────
+
+model Notification {
+  id      String              @id @default(uuid())
+  userId  String
+  user    User                @relation(fields: [userId], references: [id])
+  type    String // e.g. "BOOKING_CONFIRMED", "TECHNICIAN_EN_ROUTE", "PAYOUT_COMPLETED"
+  channel NotificationChannel
+  title   String
+  body    String
+  status  NotificationStatus  @default(PENDING)
+  metadata Json?
+
+  createdAt DateTime  @default(now())
+  sentAt    DateTime?
+  readAt    DateTime?
+
+  @@index([userId, status])
+}
+
+model Message {
+  id         String         @id @default(uuid())
+  bookingId  String?
+  booking    Booking?       @relation(fields: [bookingId], references: [id])
+  senderId   String
+  sender     User           @relation("MessageSender", fields: [senderId], references: [id])
+  receiverId String
+  receiver   User           @relation("MessageReceiver", fields: [receiverId], references: [id])
+  channel    MessageChannel
+  body       String
+  mediaId    String?
+  media      Media?         @relation(fields: [mediaId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([bookingId])
+}
+
+model Media {
+  id                  String             @id @default(uuid())
+  uploaderId          String?
+  uploader             User?              @relation(fields: [uploaderId], references: [id])
+  url                  String
+  type                 MediaType
+  context              MediaContext
+  bookingId            String?
+  booking              Booking?           @relation(fields: [bookingId], references: [id])
+  technicianProfileId  String?
+  technicianProfile    TechnicianProfile? @relation(fields: [technicianProfileId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  messages Message[]
+
+  @@index([bookingId])
+  @@index([technicianProfileId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ADMIN & CONVERSATION STATE
+// ─────────────────────────────────────────────────────────────────────────
+
+model AdminAction {
+  id         String   @id @default(uuid())
+  adminId    String
+  admin      User     @relation("AdminActionActor", fields: [adminId], references: [id])
+  actionType String // e.g. "TECHNICIAN_APPROVED", "BOOKING_REASSIGNED", "REFUND_ISSUED"
+  targetType String // e.g. "TechnicianProfile", "Booking", "Dispute"
+  targetId   String
+  metadata   Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([adminId, createdAt])
+  @@index([targetType, targetId])
+}
+
+/// One row per active WhatsApp conversation. `context` accumulates the
+/// in-progress booking request (service, problem, location, time, matched
+/// technicians, selection) as the customer moves through the state machine.
+model Conversation {
+  id            String            @id @default(uuid())
+  customerPhone String            @unique
+  userId        String? // set once the phone resolves to a User
+  state         ConversationState @default(START)
+  context       Json              @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerPhone])
+}

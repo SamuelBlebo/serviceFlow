@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "baseUrl": ".",
+    "types": ["node"],
+    // This is a leaf app (never imported by another package), so it doesn't
+    // need to emit/check .d.ts declarations — only the shared libraries do.
+    "declaration": false,
+    "declarationMap": false
+  },
+  "include": ["src"]
+}
