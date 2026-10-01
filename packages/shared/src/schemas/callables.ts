@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { BookingStatus, IdDocumentType, MobileMoneyNetwork, PaymentMethod, PreferredTime } from "../enums";
 import { availabilityWindow, serviceAreaCoverage } from "./documents";
-import { docId, ghanaPhone, latLng, minorAmount, requestId } from "./primitives";
+import { PROFILE_LIMITS, normalizeGhanaPostGps } from "../profile";
+import { docId, ghanaPhone, latLng, minorAmount, personName, requestId } from "./primitives";
 
 /**
  * Callable request/response schemas. Validated on the server (authoritative)
@@ -160,3 +161,35 @@ export const setUserStatusInput = z.object({
   reason: z.string().trim().min(3).max(500),
 });
 export type SetUserStatusInput = z.infer<typeof setUserStatusInput>;
+
+// ── Profiles (Stage 4) ───────────────────────────────────────────────────
+// Client form inputs. Profiles are written directly by their owner;
+// Firestore Security Rules enforce the same limits on the server.
+
+export const customerProfileInput = z.object({ fullName: personName });
+export type CustomerProfileInput = z.infer<typeof customerProfileInput>;
+
+const INVALID_GPS = "__invalid__";
+
+export const addressInput = z.object({
+  label: z.string().trim().min(1, "Give this address a name, e.g. Home").max(PROFILE_LIMITS.addressLabelMax),
+  directions: z
+    .string()
+    .trim()
+    .min(PROFILE_LIMITS.directionsMin, "Describe how to find you, e.g. a nearby landmark")
+    .max(PROFILE_LIMITS.directionsMax),
+  ghanaPostGps: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim() ? (normalizeGhanaPostGps(v) ?? INVALID_GPS) : null))
+    .refine((v) => v !== INVALID_GPS, { message: "Use a GhanaPost GPS address like GA-543-0125" }),
+  areaId: docId,
+  notes: z
+    .string()
+    .trim()
+    .max(PROFILE_LIMITS.notesMax)
+    .optional()
+    .transform((v) => v || null),
+});
+export type AddressInput = z.input<typeof addressInput>;
+export type AddressValues = z.output<typeof addressInput>;

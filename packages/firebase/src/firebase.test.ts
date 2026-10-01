@@ -11,6 +11,8 @@ describe("paths", () => {
     expect(paths.bookingContact("b1")).toBe("bookings/b1/private/contact");
     expect(paths.walletTransaction("u1", "earning_b1")).toBe("wallets/u1/transactions/earning_b1");
     expect(paths.platformSettings()).toBe("settings/platform");
+    expect(paths.customerAddress("u1", "a1")).toBe("customers/u1/addresses/a1");
+    expect(paths.customerAddresses("u1")).toBe("customers/u1/addresses");
     expect(paths.paymentWebhookEvent("paystack", "evt9")).toBe("paymentWebhookEvents/paystack_evt9");
   });
 

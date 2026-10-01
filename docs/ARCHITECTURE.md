@@ -62,6 +62,14 @@ Phone (customer / technician)                         Admin
 - **Sessions**: web customers/technicians persist on the device; admin sessions last for the tab, with a 30-minute idle sign-out. Mobile sessions persist natively. Route guards are UX only.
 - **Emulator conveniences** never reach production: the mock OTP sender refuses to run outside the Functions emulator, and the code is echoed to the client (`devCode`) only there.
 
+## Customer profiles (Stage 4)
+
+- `customers/{uid}` holds `fullName` and `defaultAddressId`; saved addresses live in `customers/{uid}/addresses/{id}` (a subcollection, because rules can validate each document but not array items).
+- **Written directly by the owner** — self-owned, non-sensitive data — so the Firestore rules are the validation: owner + ACTIVE account only, exact field sets, name/label/directions limits, GhanaPost GPS format (`XX-NNN(N)-NNNN`), an active catalogue area whose `areaName` must match, server timestamps, `createdAt` immutable, the default must exist and the current default can't be deleted unless the same batch moves it. The shared zod schemas apply the same rules in the forms.
+- Ghana-first addressing: label + landmark directions + service area (+ optional GhanaPost GPS digital address and notes). The location is the area centre for now; a precise device pin comes with booking requests.
+- Multi-document changes are batched (profile + first address + `users.displayName`; delete-default + move-default). Snapshots read pending server timestamps as estimates so local writes render immediately, but the UI confirms success only after the write is accepted.
+- Limits rules can't express (at most 10 saved addresses) are enforced in the apps.
+
 ## Cloud Functions build
 
 `firebase.json` points Functions at `apps/functions/dist`, produced by `apps/functions/scripts/build.mjs`: an esbuild bundle (inlining `@serviceflow/*` and zod) plus a generated `package.json` listing only `firebase-admin` and `firebase-functions`. This avoids `workspace:*` dependencies breaking the cloud `npm install`. `src/lib/global-options.ts` must stay the first import in `src/index.ts` so region and instance limits apply to every function.
@@ -76,4 +84,5 @@ Phone (customer / technician)                         Admin
 ## Stage log
 
 - **Stage 2 — Foundation**: monorepo, shared domain packages, Firebase config (deny-by-default rules, indexes), Functions skeleton with health checks and seed, web and mobile shells reading live services.
+- **Stage 4 — Users and profiles**: customer profiles and saved addresses (rules-validated client writes), welcome step, profile page, mobile display-name editing.
 - **Stage 3 — Authentication**: custom phone OTP → custom token, admin email/password, account records, suspension with audit, `users` rules, web + mobile sign-in, Functions integration tests on the emulators.

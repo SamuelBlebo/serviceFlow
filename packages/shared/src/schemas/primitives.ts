@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { isMinorAmount } from "../money";
 import { isValidGhanaPhone } from "../phone";
+import { normalizePersonName } from "../profile";
 
 /**
  * Structural timestamp type. Firestore Timestamps from the web SDK, React
@@ -37,3 +38,9 @@ export const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:m
 export const requestId = z.string().min(8).max(64).regex(/^[A-Za-z0-9_-]+$/);
 
 export const docId = z.string().min(1).max(128).regex(/^[^/]+$/, "Invalid document id");
+
+/** A person's name: trimmed, single-spaced, 2-80 letters (any script). */
+export const personName = z
+  .string()
+  .transform((v) => v.trim().replace(/\s+/g, " "))
+  .refine((v) => normalizePersonName(v) === v, { message: "Enter your name using letters only (2-80 characters)" });

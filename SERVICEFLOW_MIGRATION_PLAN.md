@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Status | **Stage 3 (Authentication) complete (2026-10-01). Stage 4 not started.** Stage records: §20.5 (Stage 2), §21 (Stage 3). |
+| Status | **Stage 4 (Users and profiles) complete (2026-10-01). Stage 5 not started.** Stage records: §20.5 (Stage 2), §21 (Stage 3), §22 (Stage 4). |
 | Date | 2026-09-30 |
 | Audited commit | `effae03` (main): "Initial commit: Home Service backend + WhatsApp booking slice" |
 | Scope | Audit and blueprint only. No code, data, Firebase or deployment changes were made |
@@ -1589,3 +1589,48 @@ src/
 - App Check enforcement and admin MFA (production hardening).
 - A production admin bootstrap (needs a real project, Decision D3).
 - Legacy auth removal is **deferred**: the remaining legacy routes depend on it (see `docs/LEGACY_REMOVAL.md`).
+
+---
+
+## 22. Stage 4: Users and profiles (2026-10-01)
+
+Stage 3 was committed as `3816252` on `stage-3-auth`. Stage 4 is on `stage-4-profiles`.
+
+### Scope delivered
+
+| Area | Delivered |
+| --- | --- |
+| Data model | `customers/{uid}` (`fullName`, `defaultAddressId`, timestamps) and `customers/{uid}/addresses/{id}` (label, landmark directions, optional GhanaPost GPS, catalogue area + name, location, notes, timestamps). Replaces the `defaultLocation` field planned in §8.2: addresses became a subcollection so the rules can validate them |
+| Shared | `profile.ts`: name rule (any script, including Ɛ and Ɔ), GhanaPost GPS normalisation/validation, limits. `customerDoc`, `customerAddressDoc`, `customerProfileInput` and `addressInput` schemas |
+| Rules | Owner-only, ACTIVE-only writes. Exact field sets and length limits, GhanaPost GPS format, active area with a matching name (no spoofing), server timestamps, immutable `createdAt`, the default must exist, and the current default can't be deleted unless moved in the same batch. Owner and admin read; admins can't edit; no client delete of profiles |
+| Web | One-time welcome step (name, then optional main address). `/app` is gated on having a profile. Profile page: rename (kept in step with `users.displayName`); add, edit, delete (with confirmation) and set-default addresses; 10-address limit. Dashboard greets by first name and shows the default address |
+| Mobile | Profile tab: edit display name (`users.displayName`, plus `customers.fullName` when a profile exists). Success is shown only after the server accepts |
+| Seed | The customer now has a profile and a default address with a GhanaPost GPS code |
+
+### Verified results
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | 8/8 packages |
+| `pnpm test` | 309 pass: shared 143, firebase 13, functions 42, web 62, mobile 13, legacy API 45 (unchanged) |
+| `pnpm test:rules` | 42 pass (19 new profile/address tests). A mutation check (removing area-name anti-spoofing) was caught |
+| `pnpm test:integration` | 24 pass (unchanged; Stage 4 adds no Functions) |
+| Browser end to end, profiles | 14/14 on fresh emulators: welcome step, invalid name, profile + address saved through the real rules, dashboard greeting, add/make-default/delete/rename, persistence after reload, returning customer skips the welcome step, no console errors |
+| Browser end to end, auth (regression) | 14/14: the Stage 3 flows still pass, now including the welcome step for a brand-new user |
+| Web build | First-load chunk 98 KB gzipped (Stage 2: 130 KB). Firestore (130 KB) and Auth (23 KB) load on demand |
+
+### Found and fixed during the stage
+
+- **Bundle regression.** Importing the profile provider in the router pulled the Firestore SDK into the first-load chunk (273 KB gzipped). The customer area is now code-split, so public pages don't download Firestore.
+- **Lost destination.** A new user who signed in to reach a specific page (for example `/app/bookings`) landed on `/app` after the welcome step. The welcome step now returns to the requested page, accepting only customer-area paths.
+- **No way out of the welcome step.** It sits outside the area layout, so a user who signed in with the wrong number couldn't sign out. A "Wrong number? Sign out" link was added.
+- The e2e harness had its own timing bugs (acting before pages rendered, and a text match that also hit "Saved addresses"). These were fixed in the harness; they were not product issues.
+
+### Not in this stage
+
+- Technician profiles, registration and verification (next: Technician onboarding).
+- Admin customer lists (Web dashboards).
+- Changing the sign-in phone number.
+- Device location pins (Bookings).
+- Push device tokens (Notifications).
+- Account deletion / data-export requests under Ghana's Data Protection Act. **Flagged for the production-hardening stage.**

@@ -21,6 +21,7 @@ Legend: ⬜ not started · 🟨 partially replaced (pure logic ported, service n
 | `modules/bookings/bookings.service.ts` | booking domain service + callables | — | ⬜ Bookings stage |
 | `modules/ratings/ratings.service.ts` | `ratings-submit` callable | — | ⬜ Bookings/Ratings stage |
 | `packages/shared/src/{phone,geo,errors}.ts` | unchanged (already shared) | 15 tests kept | ✅ nothing to remove |
+| `CustomerProfile` model (`fullName`, single default address) | `customers/{uid}` + `addresses` subcollection (Stage 4) | — (legacy had no profile tests) | 🟨 replaced in Firestore; Prisma model removed with `packages/database` |
 | `packages/database` (Prisma) | Firestore data model (§8) | — | ⬜ last |
 | `scripts/bootstrap-admin.ts` | `apps/functions/src/scripts/bootstrap-admin.ts` (emulator-only until a real project exists) | — | 🟨 replacement built (Stage 3); legacy copy removed with the legacy API |
 

@@ -40,6 +40,7 @@ export const SUBCOLLECTIONS = {
   media: "media",
   messages: "messages",
   transactions: "transactions",
+  addresses: "addresses",
 } as const;
 
 /** Well-known singleton documents. */
@@ -64,6 +65,9 @@ export const paths = {
   userNotifications: (uid: string) => `${paths.user(uid)}/${SUBCOLLECTIONS.notifications}`,
 
   customer: (uid: string) => `${COLLECTIONS.customers}/${seg(uid, "customer")}`,
+  customerAddresses: (uid: string) => `${paths.customer(uid)}/${SUBCOLLECTIONS.addresses}`,
+  customerAddress: (uid: string, addressId: string) =>
+    `${paths.customer(uid)}/${SUBCOLLECTIONS.addresses}/${seg(addressId, "address")}`,
   technician: (uid: string) => `${COLLECTIONS.technicians}/${seg(uid, "technician")}`,
   technicianVerification: (id: string) => `${COLLECTIONS.technicianVerifications}/${seg(id, "verification")}`,
 

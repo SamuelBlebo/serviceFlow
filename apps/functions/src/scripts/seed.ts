@@ -63,6 +63,9 @@ async function main(): Promise<void> {
   for (const account of customers) {
     batch.set(db.doc(paths.user(account.uid)), account.user);
     batch.set(db.doc(paths.customer(account.uid)), account.profile);
+    for (const address of account.addresses) {
+      batch.set(db.doc(paths.customerAddress(account.uid, address.id)), address.doc);
+    }
   }
   await batch.commit();
 
