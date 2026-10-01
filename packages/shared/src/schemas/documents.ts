@@ -18,7 +18,8 @@ import {
 } from "../enums";
 import { WEIGHTS } from "../matching/score";
 import { DEFAULT_TIMEZONE } from "../time";
-import { clockTime, docId, latLng, minorAmount, percent, timestampLike } from "./primitives";
+import { PROFILE_LIMITS, normalizeGhanaPostGps } from "../profile";
+import { clockTime, docId, latLng, minorAmount, percent, personName, timestampLike } from "./primitives";
 
 /**
  * Firestore document shapes (SERVICEFLOW_MIGRATION_PLAN.md §8.2). These are
@@ -44,11 +45,34 @@ export const userDoc = z.object({
 });
 export type UserDoc = z.infer<typeof userDoc>;
 
+/** `customers/{uid}` — written by the owner (rules-validated), read by owner and admins. */
 export const customerDoc = z.object({
-  fullName: z.string().min(1).max(80),
-  defaultLocation: latLng.extend({ label: z.string().max(120), areaId: docId.optional() }).nullable(),
+  fullName: personName,
+  /** Id of a document in `customers/{uid}/addresses`, or null. */
+  defaultAddressId: docId.nullable(),
+  createdAt: timestampLike,
+  updatedAt: timestampLike,
 });
 export type CustomerDoc = z.infer<typeof customerDoc>;
+
+/** `customers/{uid}/addresses/{addressId}` — a saved service location. */
+export const customerAddressDoc = z.object({
+  label: z.string().trim().min(1).max(PROFILE_LIMITS.addressLabelMax),
+  /** Landmark-style directions: "Opposite Shell, 2nd gate on the left". */
+  directions: z.string().trim().min(PROFILE_LIMITS.directionsMin).max(PROFILE_LIMITS.directionsMax),
+  /** Normalized GhanaPost GPS digital address, e.g. GA-543-0125. */
+  ghanaPostGps: z
+    .string()
+    .nullable()
+    .refine((v) => v === null || normalizeGhanaPostGps(v) === v, { message: "Use a GhanaPost GPS address like GA-543-0125" }),
+  areaId: docId,
+  areaName: z.string().max(60),
+  location: latLng,
+  notes: z.string().max(PROFILE_LIMITS.notesMax).nullable(),
+  createdAt: timestampLike,
+  updatedAt: timestampLike,
+});
+export type CustomerAddressDoc = z.infer<typeof customerAddressDoc>;
 
 export const serviceAreaCoverage = z.object({
   name: z.string().min(1).max(80),

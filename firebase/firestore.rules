@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// ServiceFlow Firestore rules — Stage 2 (foundation).
+// ServiceFlow Firestore rules.
 //
 // Principles (SERVICEFLOW_MIGRATION_PLAN.md §10):
 //  1. Deny by default — every collection opts in explicitly.
@@ -11,7 +11,8 @@ rules_version = '2';
 //     only Cloud Functions can set.
 //
 // Open so far: the public service and service-area catalogues and platform
-// settings (Stage 2); account documents (Stage 3). Every other collection —
+// settings (Stage 2); account documents (Stage 3); customer profiles and
+// saved addresses (Stage 4). Every other collection —
 // including otpChallenges and rateLimits, which are server-only forever —
 // stays closed until the stage that introduces it.
 service cloud.firestore {
@@ -46,6 +47,99 @@ service cloud.firestore {
         && request.resource.data.displayName is string
         && request.resource.data.displayName.size() <= 80;
       allow create, delete: if false;
+    }
+
+    // ── Customer profiles (Stage 4) ───────────────────────────────────
+    // Self-owned, non-sensitive data written directly by the owner, so these
+    // rules ARE the validation. They mirror the shared zod schemas
+    // (customerDoc / customerAddressDoc / PROFILE_LIMITS).
+
+    function userDoc(uid) {
+      return get(/databases/$(database)/documents/users/$(uid));
+    }
+
+    // Owner, signed in, with an ACTIVE account (suspended users can't write).
+    function isActiveSelf(uid) {
+      return isSelf(uid) && userDoc(uid).data.status == "ACTIVE";
+    }
+
+    function stampedNow(field) {
+      return request.resource.data[field] == request.time;
+    }
+
+    // Letters (any script), spaces, apostrophes, dots, hyphens; starts with a
+    // letter; no leading/trailing/double spaces; 2-80 characters.
+    function isPersonName(v) {
+      return v is string
+        && v.size() >= 2 && v.size() <= 80
+        && v.matches("^[\\p{L}\\p{M}][\\p{L}\\p{M}' .-]*$")
+        && !v.matches(".*\\s$")
+        && !v.matches(".*\\s\\s.*");
+    }
+
+    function isText(v, min, max) {
+      return v is string && v.size() >= min && v.size() <= max;
+    }
+
+    function serviceArea(areaId) {
+      return get(/databases/$(database)/documents/serviceAreas/$(areaId));
+    }
+
+    function isValidAddress(d) {
+      return d.keys().hasOnly(["label", "directions", "ghanaPostGps", "areaId", "areaName", "location", "notes", "createdAt", "updatedAt"])
+        && d.keys().hasAll(["label", "directions", "ghanaPostGps", "areaId", "areaName", "location", "notes", "createdAt", "updatedAt"])
+        && isText(d.label, 1, 40)
+        && isText(d.directions, 5, 200)
+        && (d.ghanaPostGps == null || (d.ghanaPostGps is string && d.ghanaPostGps.matches("^[A-Z]{2}-[0-9]{3,4}-[0-9]{4}$")))
+        && (d.notes == null || isText(d.notes, 0, 300))
+        && d.areaId is string
+        && exists(/databases/$(database)/documents/serviceAreas/$(d.areaId))
+        && serviceArea(d.areaId).data.isActive == true
+        && d.areaName == serviceArea(d.areaId).data.name
+        && d.location is map
+        && d.location.keys().hasOnly(["lat", "lng"])
+        && d.location.lat is number && d.location.lat >= -90 && d.location.lat <= 90
+        && d.location.lng is number && d.location.lng >= -180 && d.location.lng <= 180;
+    }
+
+    match /customers/{uid} {
+      allow read: if isSelf(uid) || isAdmin();
+
+      allow create: if isActiveSelf(uid)
+        && request.resource.data.keys().hasOnly(["fullName", "defaultAddressId", "createdAt", "updatedAt"])
+        && request.resource.data.keys().hasAll(["fullName", "defaultAddressId", "createdAt", "updatedAt"])
+        && isPersonName(request.resource.data.fullName)
+        && stampedNow("createdAt") && stampedNow("updatedAt")
+        && (request.resource.data.defaultAddressId == null
+            || existsAfter(/databases/$(database)/documents/customers/$(uid)/addresses/$(request.resource.data.defaultAddressId)));
+
+      allow update: if isActiveSelf(uid)
+        && onlyChanges(["fullName", "defaultAddressId", "updatedAt"])
+        && isPersonName(request.resource.data.fullName)
+        && stampedNow("updatedAt")
+        && (request.resource.data.defaultAddressId == null
+            || existsAfter(/databases/$(database)/documents/customers/$(uid)/addresses/$(request.resource.data.defaultAddressId)));
+
+      allow delete: if false;
+
+      match /addresses/{addressId} {
+        allow read: if isSelf(uid) || isAdmin();
+
+        // The profile must exist (or be created in the same batch).
+        allow create: if isActiveSelf(uid)
+          && existsAfter(/databases/$(database)/documents/customers/$(uid))
+          && isValidAddress(request.resource.data)
+          && stampedNow("createdAt") && stampedNow("updatedAt");
+
+        allow update: if isActiveSelf(uid)
+          && isValidAddress(request.resource.data)
+          && request.resource.data.createdAt == resource.data.createdAt
+          && stampedNow("updatedAt");
+
+        // The current default can't be deleted unless the same batch moves the default elsewhere.
+        allow delete: if isActiveSelf(uid)
+          && getAfter(/databases/$(database)/documents/customers/$(uid)).data.defaultAddressId != addressId;
+      }
     }
 
     // ── Public catalogue ───────────────────────────────────────────────

@@ -1,9 +1,26 @@
-import { createBrowserRouter } from "react-router";
-import { RequireAuth, RequireCapability } from "../lib/auth/guards";
+import { type ComponentType, type ReactNode, Suspense, lazy } from "react";
+import { Outlet, createBrowserRouter } from "react-router";
+import { FullPageSpinner, RequireAuth, RequireCapability } from "../lib/auth/guards";
 import { AdminLoginPage } from "../pages/auth/AdminLoginPage";
 import { PhoneLoginPage } from "../pages/auth/PhoneLoginPage";
 import { VerifyCodePage } from "../pages/auth/VerifyCodePage";
 import { LandingPage } from "../pages/public/LandingPage";
+
+/**
+ * The customer area (and anything else that reads Firestore) is code-split:
+ * visitors to public pages don't download the Firestore SDK.
+ */
+function lazyNamed<M, K extends keyof M>(load: () => Promise<M>, name: K) {
+  return lazy(async () => ({ default: (await load())[name] as ComponentType<{ children?: ReactNode }> }));
+}
+const loadProfile = () => import("../lib/profile/CustomerProfileProvider");
+const CustomerProfileProvider = lazyNamed(loadProfile, "CustomerProfileProvider");
+const RequireCustomerProfile = lazyNamed(loadProfile, "RequireCustomerProfile");
+const WelcomePage = lazyNamed(() => import("../pages/customer/WelcomePage"), "WelcomePage");
+const CustomerHome = lazyNamed(() => import("../pages/customer/CustomerHome"), "CustomerHome");
+const ProfilePage = lazyNamed(() => import("../pages/customer/ProfilePage"), "ProfilePage");
+
+const withSuspense = (node: ReactNode) => <Suspense fallback={<FullPageSpinner />}>{node}</Suspense>;
 import { NotFoundPage, PlaceholderPage } from "../pages/public/PlaceholderPage";
 import { ADMIN_AREA_IDLE_TIMEOUT_MS, AreaHome, AreaLayout, type AreaNavItem } from "./layouts/AreaLayout";
 import { PublicLayout } from "./layouts/PublicLayout";
@@ -85,14 +102,34 @@ export const routes = [
     ],
   },
   {
-    // Every signed-in user is a customer.
+    // Every signed-in user is a customer. A one-time welcome step creates the
+    // customer profile before the rest of the area is shown.
     path: "app",
     element: (
       <RequireAuth>
-        <AreaLayout areaName="Customer" nav={CUSTOMER_NAV} />
+        {withSuspense(
+          <CustomerProfileProvider>
+            <Outlet />
+          </CustomerProfileProvider>,
+        )}
       </RequireAuth>
     ),
-    children: areaRoutes(CUSTOMER_NAV, "/app", "Customer", "Users and profiles / Bookings"),
+    children: [
+      { path: "welcome", element: withSuspense(<WelcomePage />) },
+      {
+        element: withSuspense(
+          <RequireCustomerProfile>
+            <AreaLayout areaName="Customer" nav={CUSTOMER_NAV} />
+          </RequireCustomerProfile>,
+        ),
+        children: [
+          { index: true, element: withSuspense(<CustomerHome />) },
+          { path: "profile", element: withSuspense(<ProfilePage />) },
+          { path: "request", element: <PlaceholderPage title="Request service" stage="Bookings" /> },
+          { path: "bookings", element: <PlaceholderPage title="Bookings" stage="Bookings" /> },
+        ],
+      },
+    ],
   },
   {
     path: "tech",

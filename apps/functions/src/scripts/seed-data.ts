@@ -2,6 +2,7 @@ import {
   CommissionScope,
   DEFAULT_PLATFORM_SETTINGS,
   type CommissionRuleDoc,
+  type CustomerAddressDoc,
   type CustomerDoc,
   type PlatformSettingsDoc,
   type ServiceAreaDoc,
@@ -192,7 +193,9 @@ export function technicianAccounts(
   });
 }
 
-export function customerAccounts(now: TimestampLike): Array<SeedAccount<CustomerDoc>> {
+export function customerAccounts(
+  now: TimestampLike,
+): Array<SeedAccount<CustomerDoc> & { addresses: Array<{ id: string; doc: CustomerAddressDoc }> }> {
   return [
     {
       uid: "seed-customer-ama",
@@ -208,8 +211,26 @@ export function customerAccounts(now: TimestampLike): Array<SeedAccount<Customer
       },
       profile: {
         fullName: "Ama Test Customer",
-        defaultLocation: { label: "East Legon, Accra", lat: 5.6494, lng: -0.1531, areaId: "east-legon" },
+        defaultAddressId: "home",
+        createdAt: now,
+        updatedAt: now,
       },
+      addresses: [
+        {
+          id: "home",
+          doc: {
+            label: "Home",
+            directions: "Behind the A&C Mall, cream house with a black gate",
+            ghanaPostGps: "GA-543-0125",
+            areaId: "east-legon",
+            areaName: "East Legon",
+            location: { lat: 5.6494, lng: -0.1531 },
+            notes: null,
+            createdAt: now,
+            updatedAt: now,
+          },
+        },
+      ],
     },
   ];
 }

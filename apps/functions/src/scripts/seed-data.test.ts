@@ -1,6 +1,7 @@
 import {
   VerificationStatus,
   commissionRuleDoc,
+  customerAddressDoc,
   customerDoc,
   platformSettingsDoc,
   rankTechnicians,
@@ -60,6 +61,8 @@ describe("seed data conforms to the Firestore contract", () => {
     for (const c of customerAccounts(now)) {
       expectValid(userDoc, c.user);
       expectValid(customerDoc, c.profile);
+      for (const a of c.addresses) expectValid(customerAddressDoc, a.doc);
+      expect(c.addresses.map((a) => a.id)).toContain(c.profile.defaultAddressId);
       expect(c.claims).toEqual({});
     }
   });
