@@ -1,5 +1,5 @@
-import { prisma, VerificationStatus } from "@home-service/database";
-import { distanceKm } from "@home-service/shared";
+import { prisma, VerificationStatus } from "@serviceflow/database";
+import { distanceKm } from "@serviceflow/shared";
 import type { MatchCandidate, MatchRequest } from "./matching.types";
 
 /**

@@ -1,5 +1,5 @@
-import { BookingStatus } from "@home-service/database";
-import { ForbiddenError, InvalidStateTransitionError } from "@home-service/shared";
+import { BookingStatus } from "@serviceflow/database";
+import { ForbiddenError, InvalidStateTransitionError } from "@serviceflow/shared";
 
 /**
  * Who is allowed to *trigger* a transition. "SYSTEM" means the transition

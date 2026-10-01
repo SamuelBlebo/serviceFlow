@@ -1,0 +1,15 @@
+{
+  // Base for all new ServiceFlow packages and apps (web, mobile, functions,
+  // shared, firebase). Legacy code keeps tsconfig.base.json (CommonJS).
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "verbatimModuleSyntax": false,
+    "isolatedModules": true
+  }
+}

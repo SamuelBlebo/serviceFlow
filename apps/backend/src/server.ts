@@ -5,5 +5,5 @@ import { logger } from "./config/logger";
 const app = createApp();
 
 app.listen(env.PORT, () => {
-  logger.info(`Home Service backend listening on port ${env.PORT} (${env.NODE_ENV})`);
+  logger.info(`ServiceFlow legacy API listening on port ${env.PORT} (${env.NODE_ENV})`);
 });

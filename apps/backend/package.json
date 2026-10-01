@@ -1,5 +1,5 @@
 {
-  "name": "backend",
+  "name": "@serviceflow/legacy-api",
   "version": "0.1.0",
   "private": true,
   "main": "dist/server.js",
@@ -13,8 +13,8 @@
     "bootstrap:admin": "tsx src/scripts/bootstrap-admin.ts"
   },
   "dependencies": {
-    "@home-service/database": "workspace:*",
-    "@home-service/shared": "workspace:*",
+    "@serviceflow/database": "workspace:*",
+    "@serviceflow/shared": "workspace:*",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -36,7 +36,7 @@
     "pino-pretty": "^11.2.2",
     "supertest": "^7.0.0",
     "tsx": "^4.16.5",
-    "typescript": "^5.5.4",
+    "typescript": "~5.9.3",
     "vitest": "^2.0.5"
   }
 }

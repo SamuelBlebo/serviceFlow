@@ -1,4 +1,4 @@
-import type { PaymentMethod } from "@home-service/database";
+import type { PaymentMethod } from "@serviceflow/database";
 
 /**
  * Abstraction over the actual payment rail. Swapping providers (Paystack,

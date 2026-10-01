@@ -31,7 +31,7 @@ export function createApp() {
   const globalLimiter = rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: true, legacyHeaders: false });
   app.use(globalLimiter);
 
-  app.get("/health", (_req, res) => res.json({ status: "ok", service: "home-service-backend" }));
+  app.get("/health", (_req, res) => res.json({ status: "ok", service: "serviceflow-legacy-api" }));
 
   app.use("/api/v1/auth", authRouter);
   app.use("/api/v1/services", servicesRouter);

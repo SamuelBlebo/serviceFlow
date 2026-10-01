@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
-import { BookingStatus, PaymentMethod } from "@home-service/database";
-import { ForbiddenError } from "@home-service/shared";
+import { BookingStatus, PaymentMethod } from "@serviceflow/database";
+import { ForbiddenError } from "@serviceflow/shared";
 import { requireParam } from "../../common/http/params";
 import * as bookingsService from "./bookings.service";
 import * as paymentsService from "../payments/payments.service";

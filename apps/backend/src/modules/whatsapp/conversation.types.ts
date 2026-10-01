@@ -1,4 +1,4 @@
-import type { ConversationState, PreferredTime } from "@home-service/database";
+import type { ConversationState, PreferredTime } from "@serviceflow/database";
 import type { MatchCandidate } from "../matching/matching.types";
 import type { InboundWhatsAppMessage, WhatsAppProvider } from "./whatsapp-provider.interface";
 

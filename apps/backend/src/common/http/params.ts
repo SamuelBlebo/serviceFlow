@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import { ValidationError } from "@home-service/shared";
+import { ValidationError } from "@serviceflow/shared";
 
 /**
  * Reads a route param with a guaranteed non-undefined return type. Express

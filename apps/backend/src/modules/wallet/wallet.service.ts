@@ -1,5 +1,5 @@
-import { prisma, Prisma, WalletTransactionType, PayoutStatus } from "@home-service/database";
-import { NotFoundError, ValidationError } from "@home-service/shared";
+import { prisma, Prisma, WalletTransactionType, PayoutStatus } from "@serviceflow/database";
+import { NotFoundError, ValidationError } from "@serviceflow/shared";
 
 /**
  * All balance changes go through this module and every one of them writes

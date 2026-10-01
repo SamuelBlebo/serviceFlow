@@ -1,22 +1,29 @@
 {
-  "name": "home-service",
+  "name": "service-flow",
   "private": true,
   "version": "0.1.0",
-  "description": "Home Service — Ghana-first home-services marketplace (monorepo root)",
+  "description": "ServiceFlow — Ghana-first home and professional services platform (monorepo root)",
+  "packageManager": "pnpm@11.22.0",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12"
   },
   "scripts": {
-    "build": "pnpm -r --filter=./packages/* build && pnpm --filter=backend build",
-    "dev": "pnpm --filter=backend dev",
-    "test": "pnpm --filter=backend test",
+    "dev:web": "pnpm --filter @serviceflow/web dev",
+    "dev:mobile": "pnpm --filter @serviceflow/mobile start",
+    "emulators": "pnpm --filter @serviceflow/functions build && firebase emulators:start --project demo-serviceflow",
+    "seed": "pnpm --filter @serviceflow/functions seed",
+    "build": "pnpm --filter @serviceflow/web --filter @serviceflow/functions build",
     "typecheck": "pnpm -r typecheck",
-    "lint": "pnpm -r lint",
-    "db:generate": "pnpm --filter=@home-service/database generate",
-    "db:migrate": "pnpm --filter=@home-service/database migrate",
-    "db:seed": "pnpm --filter=@home-service/database seed"
+    "test": "pnpm -r --filter !@serviceflow/rules-tests test",
+    "test:rules": "firebase emulators:exec --only firestore,storage --project demo-serviceflow \"pnpm --filter @serviceflow/rules-tests test\"",
+    "test:legacy": "pnpm --filter @serviceflow/legacy-api test",
+    "dev:legacy": "pnpm --filter @serviceflow/legacy-api dev",
+    "db:generate": "pnpm --filter @serviceflow/database generate",
+    "db:migrate": "pnpm --filter @serviceflow/database migrate",
+    "db:seed": "pnpm --filter @serviceflow/database seed"
   },
   "devDependencies": {
-    "typescript": "^5.5.4"
+    "firebase-tools": "^15.32.0",
+    "typescript": "~5.9.3"
   }
 }

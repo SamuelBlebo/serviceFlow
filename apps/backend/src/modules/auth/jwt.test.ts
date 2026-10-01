@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Role } from "@home-service/database";
+import { Role } from "@serviceflow/database";
 import { signAccessToken, signRefreshToken, verifyAccessToken, verifyRefreshToken } from "./jwt";
 
 describe("access tokens", () => {
