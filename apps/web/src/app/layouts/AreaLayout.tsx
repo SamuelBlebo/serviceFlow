@@ -1,5 +1,8 @@
-import { NavLink, Outlet } from "react-router";
+import { ADMIN_IDLE_TIMEOUT_MS, formatGhanaPhoneForDisplay } from "@serviceflow/shared";
+import { useEffect } from "react";
+import { NavLink, Outlet, useNavigate } from "react-router";
 import { Logo } from "../../components/Logo";
+import { useAuth } from "../../lib/auth/AuthProvider";
 
 export interface AreaNavItem {
   to: string;
@@ -8,14 +11,31 @@ export interface AreaNavItem {
 
 /**
  * Shell shared by the signed-in areas (customer /app, technician /tech,
- * admin /admin). Each area passes its own navigation. Role enforcement is
- * NOT done here — route guards are UX only; Security Rules and callables
- * enforce access on the server.
+ * admin /admin). Each area passes its own navigation. Access is checked by
+ * the route guards for UX; Security Rules and callables enforce it.
  */
-export function AreaLayout({ areaName, nav }: { areaName: string; nav: AreaNavItem[] }) {
+export function AreaLayout({ areaName, nav, idleTimeoutMs }: { areaName: string; nav: AreaNavItem[]; idleTimeoutMs?: number }) {
+  const { session, actions } = useAuth();
+  const navigate = useNavigate();
+  useIdleSignOut(idleTimeoutMs);
+
+  const who =
+    session.status === "signedIn"
+      ? session.user.phone
+        ? formatGhanaPhoneForDisplay(session.user.phone)
+        : (session.user.email ?? "Signed in")
+      : null;
+
+  async function signOut() {
+    // Leave the guarded area first; otherwise the guard reacts to the session
+    // ending and redirects to the login page before we reach the home page.
+    navigate("/", { replace: true });
+    await actions.signOut();
+  }
+
   return (
     <div className="flex min-h-dvh flex-col md:flex-row">
-      <aside className="border-b border-ink-100 bg-ink-50 md:w-60 md:border-b-0 md:border-r">
+      <aside className="flex flex-col border-b border-ink-100 bg-ink-50 md:w-60 md:border-b-0 md:border-r">
         <div className="flex h-16 items-center px-4">
           <Logo />
         </div>
@@ -36,6 +56,16 @@ export function AreaLayout({ areaName, nav }: { areaName: string; nav: AreaNavIt
             </NavLink>
           ))}
         </nav>
+        {who && (
+          <div className="mt-auto flex items-center justify-between gap-2 border-t border-ink-100 px-4 py-3 md:block">
+            <p className="truncate text-sm text-ink-700" title={who}>
+              {who}
+            </p>
+            <button type="button" onClick={signOut} className="text-sm font-medium text-brand-700 hover:text-brand-800 md:mt-1">
+              Sign out
+            </button>
+          </div>
+        )}
       </aside>
       <main className="flex-1">
         <Outlet />
@@ -44,15 +74,43 @@ export function AreaLayout({ areaName, nav }: { areaName: string; nav: AreaNavIt
   );
 }
 
-/** Stage 2 guard: there is no sign-in yet, so areas show an explicit notice instead of fake auth. */
-export function AreaGate({ capability }: { capability: "customer" | "tech" | "admin" }) {
-  const who = { customer: "customers", tech: "service providers", admin: "ServiceFlow administrators" }[capability];
+/** Signs the user out after a period without interaction (admin sessions). */
+function useIdleSignOut(timeoutMs: number | undefined) {
+  const { actions } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!timeoutMs) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const reset = () => {
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        await actions.signOut();
+        navigate("/admin/login?reason=idle", { replace: true });
+      }, timeoutMs);
+    };
+    const events = ["mousemove", "keydown", "pointerdown", "scroll"] as const;
+    events.forEach((e) => window.addEventListener(e, reset, { passive: true }));
+    reset();
+    return () => {
+      clearTimeout(timer);
+      events.forEach((e) => window.removeEventListener(e, reset));
+    };
+  }, [timeoutMs, actions, navigate]);
+}
+
+export const ADMIN_AREA_IDLE_TIMEOUT_MS = ADMIN_IDLE_TIMEOUT_MS;
+
+/** Area landing placeholder until the dashboard stages fill it in. */
+export function AreaHome({ areaName, stage }: { areaName: string; stage: string }) {
+  const { session } = useAuth();
+  const name = session.status === "signedIn" ? (session.user.displayName || null) : null;
   return (
-    <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6">
-      <h1 className="text-2xl font-semibold tracking-tight text-ink-900">Sign-in required</h1>
+    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
+      <h1 className="text-2xl font-semibold tracking-tight text-ink-900">{name ? `Welcome, ${name}` : "Welcome"}</h1>
       <p className="mt-3 text-ink-600">
-        This area is for {who}. Sign-in with your phone number arrives in the Authentication stage; until then this
-        area shows its layout only.
+        You're signed in to the {areaName.toLowerCase()} area. This page is built in the{" "}
+        <strong className="font-medium text-ink-900">{stage}</strong> stage.
       </p>
     </div>
   );

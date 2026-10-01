@@ -13,8 +13,8 @@ Legend: ⬜ not started · 🟨 partially replaced (pure logic ported, service n
 | `modules/whatsapp/conversation-handlers.ts` (pure parts) | `packages/shared/src/whatsapp/text.ts` | 5 tests ported (explicit time zone) | 🟨 pure parts ported; engine in WhatsApp stage |
 | `modules/whatsapp/*provider*`, `whatsapp-security.ts` | `apps/functions/src/integrations/whatsapp/*` | New signature + parser tests | 🟨 moved in, not wired |
 | `modules/payments/*` | `apps/functions/src/integrations/payments/*` + Payments stage | — | 🟨 interface + mock moved in, not wired |
-| `common/middleware/auth.ts` (+ `auth.test.ts`) | `apps/functions/src/lib/guards.ts` + Security Rules | 6 middleware tests → guard tests + rules tests | 🟨 guards built; delete with Auth stage |
-| `modules/auth/*` (JWT, OTP) (+ `jwt.test.ts`) | Firebase Auth + Auth stage callables | 3 JWT tests → Auth emulator tests | ⬜ Auth stage |
+| `common/middleware/auth.ts` (+ `auth.test.ts`) | `apps/functions/src/lib/guards.ts` + Security Rules | 6 middleware tests → guard unit tests + `users` rules tests | 🟨 replacement complete (Stage 3). **Removal deferred**: every remaining legacy route depends on this middleware, so it is deleted together with the last legacy route |
+| `modules/auth/*` (JWT, OTP) (+ `jwt.test.ts`) | `auth-requestOtp` / `auth-verifyOtp` + Firebase Auth | 3 JWT tests → OTP + custom-token integration tests (sign-in proven with the client SDK) | 🟨 replacement complete (Stage 3). Removal deferred for the same reason |
 | `app.test.ts` (HTTP) | callable/rules tests | health, validation, 401/403 cases → `health.test.ts`, `guards.test.ts`, rules tests | 🟨 equivalents exist |
 | `modules/services/*` | `services` collection + admin callables | — | ⬜ Services stage |
 | `modules/technicians/*` | `technicians` + verification callables | — | ⬜ Technician onboarding stage |
@@ -22,6 +22,6 @@ Legend: ⬜ not started · 🟨 partially replaced (pure logic ported, service n
 | `modules/ratings/ratings.service.ts` | `ratings-submit` callable | — | ⬜ Bookings/Ratings stage |
 | `packages/shared/src/{phone,geo,errors}.ts` | unchanged (already shared) | 15 tests kept | ✅ nothing to remove |
 | `packages/database` (Prisma) | Firestore data model (§8) | — | ⬜ last |
-| `scripts/bootstrap-admin.ts` | Admin SDK bootstrap script | — | ⬜ Auth stage |
+| `scripts/bootstrap-admin.ts` | `apps/functions/src/scripts/bootstrap-admin.ts` (emulator-only until a real project exists) | — | 🟨 replacement built (Stage 3); legacy copy removed with the legacy API |
 
-Legacy defects D-1…D-16 (SERVICEFLOW_MIGRATION_PLAN.md §5.14) are fixed in the replacements, not back-ported. D-17 (typecheck error) was fixed in Stage 2 so the legacy code stays green.
+Legacy defects D-1…D-16 (SERVICEFLOW_MIGRATION_PLAN.md §5.14) are fixed in the replacements, not back-ported. Fixed so far: D-10 (no user suspension) and D-16 (Math.random OTP; accounts created on code request) in Stage 3; D-17 (typecheck error) in Stage 2.

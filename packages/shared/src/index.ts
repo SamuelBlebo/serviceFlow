@@ -8,6 +8,7 @@ export * from "./phone";
 export * from "./geo";
 export * from "./money";
 export * from "./time";
+export * from "./auth";
 
 export * from "./bookings/state-machine";
 

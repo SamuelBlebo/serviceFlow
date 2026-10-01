@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Status | **Stage 2 (Foundation) complete (2026-09-30). Stage 3 not started.** See §20.5 for what was delivered. |
+| Status | **Stage 3 (Authentication) complete (2026-10-01). Stage 4 not started.** Stage records: §20.5 (Stage 2), §21 (Stage 3). |
 | Date | 2026-09-30 |
 | Audited commit | `effae03` (main): "Initial commit: Home Service backend + WhatsApp booking slice" |
 | Scope | Audit and blueprint only. No code, data, Firebase or deployment changes were made |
@@ -1545,3 +1545,47 @@ src/
 | D4 | Final price authority | Technician quotes within the service range, customer confirms, admin can override | Bookings stage |
 | D5 | Cash jobs and commission | Post gross EARNING_CREDIT + COMMISSION_DEBIT; for cash, only the COMMISSION_DEBIT (receivable), netted against future earnings, with withdrawals blocked while negative | Payments stage |
 | D7 | Does any production data or users exist on the legacy system? | Assumed **no**, so there is no data migration | Before the Auth stage |
+
+---
+
+## 21. Stage 3: Authentication (2026-10-01)
+
+**Decision D2 resolved:** custom OTP exchanged for a Firebase custom token (recommended option). Stage 2 was committed first on branch `stage-2-foundation` (`77e3245`); Stage 3 is on `stage-3-auth`.
+
+### Scope delivered
+
+| Area | Delivered |
+| --- | --- |
+| Phone sign-in | `auth-requestOtp` / `auth-verifyOtp`. CSPRNG 6-digit code, salted scrypt hash, 5-minute expiry, 5 attempts, single use, new code replaces old. Custom token on success. `OtpSender` abstraction with an emulator-only mock |
+| Abuse limits | 30 s resend cooldown; 3 codes per phone per 10 minutes; 20 requests per network per hour (hashed keys) |
+| Accounts | Auth user and `users/{uid}` created on first verify (never on request: no enumeration). `lastLoginAt` and capability mirror refreshed on sign-in |
+| Admin | Email/password sign-in on web (tab-scoped session, 30-minute idle sign-out). `pnpm bootstrap:admin` (emulator-only) |
+| Suspension (fixes D-10) | `admin-suspendUser` / `admin-reactivateUser`: admin claim + sign-in within 15 minutes + active admin. Transactional status change, technician taken offline, audit entry keyed by request id (idempotent retries). Auth user disabled and tokens revoked. `requireActiveUser` blocks suspended users on the next call |
+| Rules | `users/{uid}`: owner and admin read; owner may change only `displayName` (string, ≤ 80 characters) while ACTIVE; no client create or delete. `otpChallenges` and `rateLimits` stay server-only |
+| Web | `/login`, `/login/verify`, `/admin/login`. Real guards for `/app`, `/tech` (tech claim), `/admin` (admin claim). Signed-in identity and sign-out. The Auth SDK loads lazily, after the page shell |
+| Mobile | React Native Firebase Auth + Functions. Phone and code screens; signed-out users are redirected to sign-in; Profile shows the account and sign-out |
+
+### Verified results
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | 8/8 packages |
+| `pnpm test` | 281 pass: shared 130, firebase 13, functions 42, web 41, mobile 10, legacy API 45 (unchanged) |
+| `pnpm test:rules` | 23 pass (users, auth internals, plus all Stage 2 rules) |
+| `pnpm test:integration` (new) | 24 pass on the Auth, Firestore and Functions emulators. Includes custom-token sign-in proven with the client SDK, and the deployed callables over HTTP |
+| Browser end to end | 13/13: guarded redirect with `next`, invalid number, dev code, wrong code, sign-in back to the original page, customer refused `/admin`, sign-out to the home page, admin login (wrong password refused, then success), no console errors |
+| Mobile | Typecheck, 10 tests, Android bundle, `expo install --check` |
+
+### Found and fixed during the stage
+
+- **Sign-out landed on the login page instead of the home page.** The guard reacted to the session ending before navigation happened. Fixed by leaving the guarded area first. This was caught by the browser test.
+- **Functions were registered in the wrong region.** Imports are hoisted, so `onCall` ran before `setGlobalOptions` (fixed via `lib/global-options.ts` as the first import). This was caught in Stage 2 and is noted here because every new callable relies on it.
+
+### Not in this stage
+
+- Customer and technician profiles (next stage: Users and profiles).
+- Technician registration (`tech` claim) and verification.
+- A real SMS or WhatsApp OTP provider.
+- App Check enforcement and admin MFA (production hardening).
+- A production admin bootstrap (needs a real project, Decision D3).
+- Legacy auth removal is **deferred**: the remaining legacy routes depend on it (see `docs/LEGACY_REMOVAL.md`).

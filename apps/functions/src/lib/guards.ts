@@ -1,4 +1,16 @@
-import { ForbiddenError, UnauthorizedError, ValidationError } from "@serviceflow/shared";
+import { paths } from "@serviceflow/firebase";
+import {
+  type Capabilities,
+  type Capability,
+  ForbiddenError,
+  RECENT_SIGN_IN_SECONDS,
+  ReauthenticationRequiredError,
+  UnauthorizedError,
+  UserStatus,
+  ValidationError,
+  capabilitiesFromClaims,
+} from "@serviceflow/shared";
+import type { Firestore } from "firebase-admin/firestore";
 import type { z } from "zod";
 
 /**
@@ -9,7 +21,7 @@ import type { z } from "zod";
  * Capabilities are custom claims set exclusively by Cloud Functions:
  *   { tech?: true, admin?: true }   — every signed-in user is a customer.
  */
-export type Capability = "tech" | "admin";
+export type { Capability };
 
 /** The subset of a v2 CallableRequest the guards need (keeps them unit-testable). */
 export interface GuardableRequest {
@@ -18,7 +30,7 @@ export interface GuardableRequest {
 
 export interface AuthContext {
   uid: string;
-  capabilities: { tech: boolean; admin: boolean };
+  capabilities: Capabilities;
 }
 
 export function requireAuth(request: GuardableRequest): AuthContext {
@@ -26,10 +38,7 @@ export function requireAuth(request: GuardableRequest): AuthContext {
   if (!auth?.uid) {
     throw new UnauthorizedError("Sign in to continue");
   }
-  return {
-    uid: auth.uid,
-    capabilities: { tech: auth.token.tech === true, admin: auth.token.admin === true },
-  };
+  return { uid: auth.uid, capabilities: capabilitiesFromClaims(auth.token) };
 }
 
 export function requireCapability(request: GuardableRequest, capability: Capability): AuthContext {
@@ -38,6 +47,33 @@ export function requireCapability(request: GuardableRequest, capability: Capabil
     throw new ForbiddenError(`This action requires the ${capability} capability`);
   }
   return ctx;
+}
+
+/**
+ * Rejects callers whose account is suspended (or has no account record).
+ * ID tokens stay valid for up to an hour after a suspension; this per-call
+ * check makes the suspension effective immediately (fixes legacy D-10).
+ */
+export async function requireActiveUser(request: GuardableRequest, db: Firestore): Promise<AuthContext> {
+  const ctx = requireAuth(request);
+  const snap = await db.doc(paths.user(ctx.uid)).get();
+  if (!snap.exists) throw new ForbiddenError("Account not found");
+  if (snap.get("status") !== UserStatus.ACTIVE) {
+    throw new ForbiddenError("This account has been suspended. Contact ServiceFlow support.");
+  }
+  return ctx;
+}
+
+/** Sensitive admin actions require a sign-in within the last RECENT_SIGN_IN_SECONDS. */
+export function requireRecentSignIn(
+  request: GuardableRequest,
+  nowMs: number = Date.now(),
+  maxAgeSeconds: number = RECENT_SIGN_IN_SECONDS,
+): void {
+  const authTime = request.auth?.token.auth_time;
+  if (typeof authTime !== "number" || nowMs - authTime * 1000 > maxAgeSeconds * 1000) {
+    throw new ReauthenticationRequiredError();
+  }
 }
 
 /** Validates callable input with the shared schema; the error lists the offending fields. */

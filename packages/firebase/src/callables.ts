@@ -6,6 +6,11 @@ import {
   healthOutput,
   initiatePaymentInput,
   registerTechnicianInput,
+  requestOtpInput,
+  requestOtpOutput,
+  setUserStatusInput,
+  verifyOtpInput,
+  verifyOtpOutput,
   requestPayoutInput,
   respondToOfferInput,
   selectTechnicianInput,
@@ -22,15 +27,16 @@ import { z } from "zod";
  * and get back `CallableOutput<"x">`; the Function validates the same input
  * schema. Names follow the deployed Functions v2 grouping ("group-name").
  *
- * `stage` records when each callable is implemented. Only `health` exists in
- * Stage 2 — the rest are declared so the contract is fixed before building.
+ * `stage` records when each callable is implemented. Implemented so far:
+ * `health` (Stage 2) and the `auth`/`admin` callables (Stage 3). The rest are
+ * declared so the contract is fixed before building.
  */
 
 export interface CallableDefinition<I extends z.ZodType, O extends z.ZodType> {
   name: string;
   input: I;
   output: O;
-  stage: "foundation" | "auth" | "technicians" | "bookings" | "payments" | "wallet" | "ratings";
+  stage: "foundation" | "auth" | "admin" | "technicians" | "bookings" | "payments" | "wallet" | "ratings";
 }
 
 function defineCallable<I extends z.ZodType, O extends z.ZodType>(def: CallableDefinition<I, O>) {
@@ -44,6 +50,16 @@ const empty = z.object({}).strict();
 
 export const callables = {
   health: defineCallable({ name: "system-health", input: empty, output: healthOutput, stage: "foundation" }),
+
+  requestOtp: defineCallable({ name: "auth-requestOtp", input: requestOtpInput, output: requestOtpOutput, stage: "auth" }),
+  verifyOtp: defineCallable({ name: "auth-verifyOtp", input: verifyOtpInput, output: verifyOtpOutput, stage: "auth" }),
+  suspendUser: defineCallable({ name: "admin-suspendUser", input: setUserStatusInput, output: mutationResult, stage: "admin" }),
+  reactivateUser: defineCallable({
+    name: "admin-reactivateUser",
+    input: setUserStatusInput,
+    output: mutationResult,
+    stage: "admin",
+  }),
 
   registerTechnician: defineCallable({
     name: "technicians-register",

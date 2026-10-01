@@ -120,3 +120,43 @@ export const submitRatingInput = z.object({
   score: z.number().int().min(1).max(5),
   comment: z.string().trim().max(1000).optional(),
 });
+
+// ── Authentication (Stage 3) ─────────────────────────────────────────────
+
+export const requestOtpInput = z.object({ phone: ghanaPhone });
+export type RequestOtpInput = z.infer<typeof requestOtpInput>;
+
+export const requestOtpOutput = z.object({
+  ok: z.literal(true),
+  /** E.164 form of the number the code was sent to. */
+  phone: z.string(),
+  expiresInSeconds: z.number().int().positive(),
+  resendInSeconds: z.number().int().nonnegative(),
+  /**
+   * LOCAL EMULATOR ONLY: the code itself, so developers can sign in without an
+   * SMS provider. The server never sets this outside the Functions emulator.
+   */
+  devCode: z.string().optional(),
+});
+export type RequestOtpOutput = z.infer<typeof requestOtpOutput>;
+
+export const verifyOtpInput = z.object({
+  phone: ghanaPhone,
+  code: z.string().regex(/^\d{6}$/, "Enter the 6-digit code"),
+});
+export type VerifyOtpInput = z.infer<typeof verifyOtpInput>;
+
+export const verifyOtpOutput = z.object({
+  /** Firebase custom token — pass to signInWithCustomToken. */
+  token: z.string().min(1),
+  isNewUser: z.boolean(),
+});
+export type VerifyOtpOutput = z.infer<typeof verifyOtpOutput>;
+
+/** Admin: suspend or reactivate an account (audited; requires a recent admin sign-in). */
+export const setUserStatusInput = z.object({
+  requestId,
+  uid: docId,
+  reason: z.string().trim().min(3).max(500),
+});
+export type SetUserStatusInput = z.infer<typeof setUserStatusInput>;

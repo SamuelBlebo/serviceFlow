@@ -1,5 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Tabs } from "expo-router";
+import { Redirect, Tabs } from "expo-router";
+import { ActivityIndicator, View } from "react-native";
+import { useAuth } from "../../src/auth/AuthProvider";
 import type { ComponentProps } from "react";
 import { colors } from "../../src/theme";
 
@@ -15,6 +17,15 @@ const TABS: Array<{ name: string; title: string; icon: IconName }> = [
 
 /** Technician-first navigation (§12.2): Home, Jobs, Earnings, Notifications, Profile. */
 export default function TabsLayout() {
+  const { session } = useAuth();
+  if (session.status === "loading") {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator color={colors.brand} />
+      </View>
+    );
+  }
+  if (session.status === "signedOut") return <Redirect href="/phone" />;
   return (
     <Tabs
       screenOptions={{

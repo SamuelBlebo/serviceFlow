@@ -2,7 +2,7 @@ import { AppError, createBookingInput } from "@serviceflow/shared";
 import { HttpsError } from "firebase-functions/v2/https";
 import { describe, expect, it } from "vitest";
 import { toHttpsError } from "./errors";
-import { parseInput, requireAuth, requireCapability } from "./guards";
+import { parseInput, requireAuth, requireCapability, requireRecentSignIn } from "./guards";
 
 // Replaces the legacy `common/middleware/auth.test.ts` (JWT middleware) and
 // the auth/role-escalation cases of `app.test.ts`: the same guarantees,
@@ -85,5 +85,30 @@ describe("toHttpsError", () => {
     const mapped = toHttpsError(new Error("connection string postgres://secret"));
     expect(mapped.code).toBe("internal");
     expect(mapped.message).not.toContain("secret");
+  });
+});
+
+describe("requireRecentSignIn", () => {
+  const now = Date.UTC(2026, 9, 1, 12, 0, 0);
+  const signedInAt = (secondsAgo: number) => ({ auth: { uid: "admin-1", token: { admin: true, auth_time: now / 1000 - secondsAgo } } });
+
+  it("accepts a sign-in within 15 minutes", () => {
+    expect(() => requireRecentSignIn(signedInAt(14 * 60), now)).not.toThrow();
+  });
+
+  it("asks for re-authentication after 15 minutes, with a code clients can detect", () => {
+    const err = (() => {
+      try {
+        requireRecentSignIn(signedInAt(16 * 60), now);
+      } catch (e) {
+        return toHttpsError(e);
+      }
+    })();
+    expect(err?.code).toBe("unauthenticated");
+    expect((err?.details as { code?: string }).code).toBe("REAUTH_REQUIRED");
+  });
+
+  it("treats a token without auth_time as stale", () => {
+    expect(() => requireRecentSignIn({ auth: { uid: "x", token: {} } }, now)).toThrow();
   });
 });

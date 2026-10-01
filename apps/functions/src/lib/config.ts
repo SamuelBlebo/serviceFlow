@@ -28,3 +28,8 @@ export const WHATSAPP_ACCESS_TOKEN = defineSecret("WHATSAPP_ACCESS_TOKEN");
 export const WHATSAPP_APP_SECRET = defineSecret("WHATSAPP_APP_SECRET");
 
 export const SERVICE_NAME = "serviceflow-functions";
+
+/** True inside the Firebase Functions emulator (set by the emulator itself). */
+export function isFunctionsEmulator(): boolean {
+  return process.env.FUNCTIONS_EMULATOR === "true";
+}

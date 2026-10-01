@@ -16,7 +16,9 @@
     "@expo/vector-icons": "^15.0.2",
     "@react-native-community/netinfo": "12.0.1",
     "@react-native-firebase/app": "^26.4.0",
+    "@react-native-firebase/auth": "^26.4.0",
     "@react-native-firebase/firestore": "^26.4.0",
+    "@react-native-firebase/functions": "^26.4.0",
     "@serviceflow/firebase": "workspace:*",
     "@serviceflow/shared": "workspace:*",
     "expo": "~57.0.20",
@@ -43,6 +45,8 @@
   },
   "jest": {
     "preset": "jest-expo",
-    "testMatch": ["<rootDir>/src/**/*.test.{ts,tsx}"]
+    "testMatch": [
+      "<rootDir>/src/**/*.test.{ts,tsx}"
+    ]
   }
 }

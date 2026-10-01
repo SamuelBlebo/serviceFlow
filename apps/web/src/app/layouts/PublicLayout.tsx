@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from "react-router";
 import { Logo } from "../../components/Logo";
+import { useAuth } from "../../lib/auth/AuthProvider";
 import { usingEmulators as readUsingEmulators } from "../../lib/firebase/app";
 
 const NAV = [
@@ -10,6 +11,11 @@ const NAV = [
 ];
 
 export function PublicLayout() {
+  const { session } = useAuth();
+  const account =
+    session.status === "signedIn"
+      ? { to: session.capabilities.admin ? "/admin" : session.capabilities.tech ? "/tech" : "/app", label: "Dashboard" }
+      : { to: "/login", label: "Sign in" };
   return (
     <div className="flex min-h-dvh flex-col">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50">
@@ -32,10 +38,10 @@ export function PublicLayout() {
             ))}
           </nav>
           <NavLink
-            to="/login"
+            to={account.to}
             className="rounded-lg border border-ink-200 px-4 py-2 text-sm font-medium text-ink-900 hover:border-ink-300"
           >
-            Sign in
+            {account.label}
           </NavLink>
         </div>
         <nav aria-label="Main (mobile)" className="flex gap-5 overflow-x-auto px-4 pb-3 md:hidden">
