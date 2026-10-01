@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
-import { Role } from "@home-service/database";
+import { Role } from "@serviceflow/database";
 import * as authService from "./auth.service";
 
 const requestOtpSchema = z.object({

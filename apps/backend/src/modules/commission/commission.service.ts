@@ -1,4 +1,4 @@
-import { prisma, CommissionScope } from "@home-service/database";
+import { prisma, CommissionScope } from "@serviceflow/database";
 import { env } from "../../config/env";
 
 /**

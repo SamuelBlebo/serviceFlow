@@ -1,0 +1,13 @@
+rules_version = '2';
+
+// ServiceFlow Storage rules — Stage 2 (foundation).
+// Deny by default. Upload paths (SERVICEFLOW_MIGRATION_PLAN.md §8.5) are
+// opened one at a time in the stages that introduce them, each with
+// ownership, content-type and size checks.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

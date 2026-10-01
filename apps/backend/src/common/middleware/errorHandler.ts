@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { AppError } from "@home-service/shared";
+import { AppError } from "@serviceflow/shared";
 import { logger } from "../../config/logger";
 
 /**

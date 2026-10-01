@@ -1,6 +1,6 @@
 import { env } from "../../config/env";
 import { logger } from "../../config/logger";
-import { normalizeGhanaPhone } from "@home-service/shared";
+import { normalizeGhanaPhone } from "@serviceflow/shared";
 import type { InboundWhatsAppMessage, WhatsAppProvider } from "./whatsapp-provider.interface";
 
 const GRAPH_API_VERSION = "v20.0";

@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { UnauthorizedError } from "@home-service/shared";
+import { UnauthorizedError } from "@serviceflow/shared";
 import { env } from "../../config/env";
 import { logger } from "../../config/logger";
 import { getWhatsAppProvider } from "./whatsapp-provider.factory";

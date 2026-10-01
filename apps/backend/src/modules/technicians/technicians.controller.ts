@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
-import { VerificationStatus } from "@home-service/database";
+import { VerificationStatus } from "@serviceflow/database";
 import { requireParam } from "../../common/http/params";
 import * as techniciansService from "./technicians.service";
 import * as bookingsService from "../bookings/bookings.service";

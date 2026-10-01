@@ -1,3 +1,25 @@
 packages:
   - "apps/*"
   - "packages/*"
+  - "firebase"
+
+# Expo/Metro resolve modules most reliably from a flat node_modules tree.
+nodeLinker: hoisted
+
+# pnpm 11 blocks dependency build scripts unless allow-listed here.
+allowBuilds:
+  "@prisma/client": true
+  "@prisma/engines": true
+  prisma: true
+  esbuild: true
+  protobufjs: true
+  # Optional native regex addon of firebase-tools; it works without it.
+  re2: false
+  "@firebase/util": true
+
+# Exactly one Firebase JS SDK in the workspace. Two copies break instance
+# checks (e.g. rules tests: "Expected first argument to doc() to be a
+# CollectionReference"). Pinned to the version @react-native-firebase/app
+# depends on; bump both together.
+overrides:
+  firebase: 12.17.1

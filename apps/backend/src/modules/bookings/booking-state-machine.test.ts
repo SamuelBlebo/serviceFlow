@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BookingStatus } from "@home-service/database";
+import { BookingStatus } from "@serviceflow/database";
 import { assertActorCanTransition, assertValidBookingTransition, getValidNextStates } from "./booking-state-machine";
 
 describe("booking state machine", () => {

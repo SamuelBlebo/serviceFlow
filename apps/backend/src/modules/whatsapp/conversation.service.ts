@@ -1,5 +1,5 @@
-import { prisma, Role, type ConversationState } from "@home-service/database";
-import { normalizeGhanaPhone } from "@home-service/shared";
+import { prisma, Role, type ConversationState } from "@serviceflow/database";
+import { normalizeGhanaPhone } from "@serviceflow/shared";
 import { getWhatsAppProvider } from "./whatsapp-provider.factory";
 import { STATE_HANDLERS } from "./conversation-handlers";
 import type { ConversationContext } from "./conversation.types";

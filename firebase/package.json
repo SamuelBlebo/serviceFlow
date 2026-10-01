@@ -1,0 +1,17 @@
+{
+  "name": "@serviceflow/rules-tests",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Firestore and Storage Security Rules tests — run against the Firebase emulators (pnpm test:rules from the repo root)",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "@types/node": "^22.19.0",
+    "firebase": "12.17.1",
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.2"
+  }
+}

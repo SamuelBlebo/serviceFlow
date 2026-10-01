@@ -1,5 +1,5 @@
-// Home Service — Prisma schema
-// Ghana-first home-services marketplace.
+// ServiceFlow (legacy) — Prisma schema
+// Kept only until each domain is migrated to Firebase (see SERVICEFLOW_MIGRATION_PLAN.md).
 // Conventions:
 //  - UUID primary keys everywhere.
 //  - createdAt/updatedAt on every model that changes over time.

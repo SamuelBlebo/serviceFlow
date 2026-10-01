@@ -1,4 +1,4 @@
-import { prisma, ConversationState, PreferredTime } from "@home-service/database";
+import { prisma, ConversationState, PreferredTime } from "@serviceflow/database";
 import * as bookingsService from "../bookings/bookings.service";
 import type { ConversationContext, ConversationHandler, ConversationHandlerResult, ServiceMenuItem } from "./conversation.types";
 
@@ -22,7 +22,7 @@ async function buildServiceMenu(): Promise<ServiceMenuItem[]> {
 
 export function serviceMenuText(menu: ServiceMenuItem[]): string {
   const lines = menu.map((item) => `${item.index}️⃣ ${item.name}`);
-  return `👋 Welcome to Home Service.\n\nWhat service do you need?\n\n${lines.join("\n")}`;
+  return `👋 Welcome to ServiceFlow.\n\nWhat service do you need?\n\n${lines.join("\n")}`;
 }
 
 /** START — greets the customer and shows the current, DB-driven service menu. Also the reset point after a booking completes. */

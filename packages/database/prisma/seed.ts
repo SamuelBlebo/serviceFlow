@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 const DEFAULT_COMMISSION_PERCENT = Number(process.env.DEFAULT_COMMISSION_PERCENT ?? 15);
 
 async function main() {
-  console.log("Seeding Home Service database...");
+  console.log("Seeding ServiceFlow legacy database...");
 
   // ── Launch services (Ghana-first MVP: §5 of the spec) ──────────────────
   const services = await Promise.all(
@@ -55,7 +55,7 @@ async function main() {
   }
 
   // ── Bootstrap admin ──────────────────────────────────────────────────────
-  const adminEmail = process.env.ADMIN_BOOTSTRAP_EMAIL ?? "admin@homeservice.gh";
+  const adminEmail = process.env.ADMIN_BOOTSTRAP_EMAIL ?? "admin@serviceflow.dev";
   const adminExists = await prisma.user.findUnique({ where: { email: adminEmail } });
   if (!adminExists) {
     // Password hashing lives in the backend's auth module; the seed only
