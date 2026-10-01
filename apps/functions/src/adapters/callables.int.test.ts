@@ -98,3 +98,50 @@ describe("admin-suspendUser over HTTP", () => {
     expect((await admin.db.doc("users/cust-1").get()).get("status")).toBe(UserStatus.SUSPENDED);
   });
 });
+
+describe("admin-upsertService / admin-setServiceActive over HTTP", () => {
+  const upsertService = fn<Record<string, unknown>, { ok: true; id: string }>(callables.upsertService.name);
+  const setServiceActive = fn<Record<string, unknown>, { ok: true; id: string }>(callables.setServiceActive.name);
+  const input = {
+    requestId: "req_http_service_1",
+    name: "Carpentry",
+    description: "Doors, cabinets and furniture repairs.",
+    priceRange: { minMinor: 12000, maxMinor: 50000 },
+    sortOrder: 5,
+  };
+
+  it("rejects signed-out callers and non-admins", async () => {
+    expect((await failure(upsertService(input))).code).toBe("functions/unauthenticated");
+    await admin.auth.createUser({ uid: "cust-9" });
+    await signInWithCustomToken(getAuth(app), await admin.auth.createCustomToken("cust-9"));
+    expect((await failure(upsertService(input))).code).toBe("functions/permission-denied");
+  });
+
+  it("lets an admin create and hide a service, with validation errors mapped for the UI", async () => {
+    await signInAsAdmin();
+    const bad = await failure(upsertService({ ...input, priceRange: { minMinor: 50000, maxMinor: 12000 } }));
+    expect(bad.code).toBe("functions/invalid-argument");
+
+    await expect(upsertService(input)).resolves.toMatchObject({ data: { ok: true, id: "carpentry" } });
+    await expect(setServiceActive({ requestId: "req_http_service_2", serviceId: "carpentry", isActive: false })).resolves.toMatchObject({
+      data: { ok: true, id: "carpentry" },
+    });
+    expect((await admin.db.doc("services/carpentry").get()).get("isActive")).toBe(false);
+  });
+});
+
+describe("optional fields sent as undefined by the client SDK (Stage 5 regression)", () => {
+  it("creates a service when the page passes serviceId: undefined (the SDK sends null)", async () => {
+    await signInAsAdmin();
+    const upsert = fn<Record<string, unknown>, { ok: true; id: string }>(callables.upsertService.name);
+    const result = await upsert({
+      requestId: "req_http_service_undefined",
+      serviceId: undefined,
+      name: "Home Cleaning",
+      description: "Regular and deep cleaning.",
+      priceRange: { minMinor: 15000, maxMinor: 60000 },
+      sortOrder: 4,
+    });
+    expect(result.data).toEqual({ ok: true, id: "home-cleaning" });
+  });
+});

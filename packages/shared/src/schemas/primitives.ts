@@ -44,3 +44,13 @@ export const personName = z
   .string()
   .transform((v) => v.trim().replace(/\s+/g, " "))
   .refine((v) => normalizePersonName(v) === v, { message: "Enter your name using letters only (2-80 characters)" });
+
+/**
+ * Optional field of a CALLABLE input. The Firebase callable SDKs serialise
+ * `undefined` as `null`, so a client that sets a field to undefined sends
+ * null. Accept both and normalise to undefined, so every client (web,
+ * mobile, WhatsApp) can call the backend the same way.
+ */
+export function optionalInput<T extends z.ZodType>(schema: T) {
+  return schema.nullish().transform((v) => v ?? undefined);
+}

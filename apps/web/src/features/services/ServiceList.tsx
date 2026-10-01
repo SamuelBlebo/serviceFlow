@@ -1,4 +1,5 @@
 import { formatMoneyRange } from "@serviceflow/shared";
+import { Link } from "react-router";
 import type { ActiveServicesState } from "./useActiveServices";
 
 /**
@@ -50,7 +51,11 @@ export function ServiceList({ state, onRetry }: { state: ActiveServicesState; on
           key={service.id}
           className="flex flex-col rounded-xl border border-ink-100 bg-white p-6 transition-colors hover:border-brand-300"
         >
-          <h3 className="text-lg font-semibold text-ink-900">{service.name}</h3>
+          <h3 className="text-lg font-semibold text-ink-900">
+            <Link to={`/services/${service.id}`} className="hover:text-brand-700">
+              {service.name}
+            </Link>
+          </h3>
           <p className="mt-2 flex-1 text-sm leading-relaxed text-ink-600">{service.description}</p>
           <p className="mt-4 text-sm text-ink-500">
             Typical price{" "}

@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Status | **Stage 4 (Users and profiles) complete (2026-10-01). Stage 5 not started.** Stage records: §20.5 (Stage 2), §21 (Stage 3), §22 (Stage 4). |
+| Status | **Stage 5 (Services) complete (2026-10-01). Stage 6 not started.** Stage records: §20.5 (Stage 2), §21 (Stage 3), §22 (Stage 4), §23 (Stage 5). |
 | Date | 2026-09-30 |
 | Audited commit | `effae03` (main): "Initial commit: Home Service backend + WhatsApp booking slice" |
 | Scope | Audit and blueprint only. No code, data, Firebase or deployment changes were made |
@@ -1634,3 +1634,42 @@ Stage 3 was committed as `3816252` on `stage-3-auth`. Stage 4 is on `stage-4-pro
 - Device location pins (Bookings).
 - Push device tokens (Notifications).
 - Account deletion / data-export requests under Ghana's Data Protection Act. **Flagged for the production-hardening stage.**
+
+---
+
+## 23. Stage 5: Services (2026-10-01)
+
+Stage 4 was committed as `9953560` on `stage-4-profiles`. Stage 5 is on `stage-5-services`.
+
+### Scope delivered
+
+| Area | Delivered |
+| --- | --- |
+| Callables | `admin-upsertService` (create/edit) and `admin-setServiceActive` (hide/show, optional reason). Both require the admin claim and an ACTIVE account, are transactional, write an audit entry with before/after of changed fields, and are idempotent per request id |
+| Catalogue rules | The id is the slug, fixed at creation. Names are unique regardless of case and spacing. Prices are whole pesewas with min ≤ max and a sanity cap. Services are hidden, never deleted |
+| Shared | `catalogue.ts` (`slugify`, `serviceNameKey`, limits), `upsertServiceInput`, `setServiceActiveInput`, `optionalInput()` |
+| Web admin | `/admin/services`: live list of all services, including hidden ones. Create and edit (prices typed in cedis, web-address preview), hide/show with confirmation and a reason for the audit log. Each submission keeps one request id across retries |
+| Web public | `/services` (live list) and `/services/:slug` (hidden or unknown services read as "not available"); service cards link to their page. Firestore stays out of the first-load chunk (68 KB gzipped) |
+
+### Verified results
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | 8/8 packages |
+| `pnpm test` | 345 pass: shared 157, firebase 13, functions 42, web 75, mobile 13, legacy API 45 (unchanged) |
+| `pnpm test:rules` | 42 pass (rules unchanged; catalogue writes were already server-only) |
+| `pnpm test:integration` | 37 pass (13 new: create, idempotent retry, duplicate name/slug, edit audit, hide/show, HTTP auth checks, and the `undefined` → `null` regression) |
+| Browser end to end | Services 12/12, profiles 14/14, auth 14/14 on fresh emulators |
+
+### Found and fixed during the stage
+
+- **Creating a service from the admin page always failed with "Invalid request".** The Firebase callable SDK sends `undefined` fields as `null`, and the schemas rejected `null`. Integration tests omitted the field and web tests mocked the store, so only the browser run caught it. Fixed for all 12 optional callable fields with `optionalInput()`. Regression tests were added at the contract level and over HTTP through the real client SDK.
+- **Validation errors showed "Invalid request".** The web app now shows the first field message the server returns.
+- **A duplicate name was reported as a web-address clash.** The name check now runs first, so the message says "Another service is already called …".
+
+### Not in this stage
+
+- Service icons/images (Storage arrives with Technician onboarding).
+- Technicians selecting services (Technician onboarding).
+- Commission rules per service (Payments).
+- Removing the legacy services module: deferred, because the legacy WhatsApp bot still reads services through Prisma.

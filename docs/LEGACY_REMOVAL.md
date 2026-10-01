@@ -16,7 +16,7 @@ Legend: ⬜ not started · 🟨 partially replaced (pure logic ported, service n
 | `common/middleware/auth.ts` (+ `auth.test.ts`) | `apps/functions/src/lib/guards.ts` + Security Rules | 6 middleware tests → guard unit tests + `users` rules tests | 🟨 replacement complete (Stage 3). **Removal deferred**: every remaining legacy route depends on this middleware, so it is deleted together with the last legacy route |
 | `modules/auth/*` (JWT, OTP) (+ `jwt.test.ts`) | `auth-requestOtp` / `auth-verifyOtp` + Firebase Auth | 3 JWT tests → OTP + custom-token integration tests (sign-in proven with the client SDK) | 🟨 replacement complete (Stage 3). Removal deferred for the same reason |
 | `app.test.ts` (HTTP) | callable/rules tests | health, validation, 401/403 cases → `health.test.ts`, `guards.test.ts`, rules tests | 🟨 equivalents exist |
-| `modules/services/*` | `services` collection + admin callables | — | ⬜ Services stage |
+| `modules/services/*` | `services` collection + `admin-upsertService` / `admin-setServiceActive` (Stage 5) | — (legacy had no service tests) → 13 catalogue integration tests | 🟨 replacement complete. Removal deferred: the legacy WhatsApp bot still reads services through Prisma until the WhatsApp stage |
 | `modules/technicians/*` | `technicians` + verification callables | — | ⬜ Technician onboarding stage |
 | `modules/bookings/bookings.service.ts` | booking domain service + callables | — | ⬜ Bookings stage |
 | `modules/ratings/ratings.service.ts` | `ratings-submit` callable | — | ⬜ Bookings/Ratings stage |

@@ -19,9 +19,11 @@ const RequireCustomerProfile = lazyNamed(loadProfile, "RequireCustomerProfile");
 const WelcomePage = lazyNamed(() => import("../pages/customer/WelcomePage"), "WelcomePage");
 const CustomerHome = lazyNamed(() => import("../pages/customer/CustomerHome"), "CustomerHome");
 const ProfilePage = lazyNamed(() => import("../pages/customer/ProfilePage"), "ProfilePage");
+const AdminServicesPage = lazyNamed(() => import("../pages/admin/AdminServicesPage"), "AdminServicesPage");
 
 const withSuspense = (node: ReactNode) => <Suspense fallback={<FullPageSpinner />}>{node}</Suspense>;
 import { NotFoundPage, PlaceholderPage } from "../pages/public/PlaceholderPage";
+import { ServiceDetailPage, ServicesPage } from "../pages/public/ServicesPages";
 import { ADMIN_AREA_IDLE_TIMEOUT_MS, AreaHome, AreaLayout, type AreaNavItem } from "./layouts/AreaLayout";
 import { PublicLayout } from "./layouts/PublicLayout";
 
@@ -80,10 +82,8 @@ export const routes = [
     element: <PublicLayout />,
     children: [
       { index: true, element: <LandingPage /> },
-      {
-        path: "services",
-        element: <PlaceholderPage title="Services" stage="Services">Browse every service we offer across Accra.</PlaceholderPage>,
-      },
+      { path: "services", element: <ServicesPage /> },
+      { path: "services/:slug", element: <ServiceDetailPage /> },
       { path: "how-it-works", element: <PlaceholderPage title="How it works" stage="Web dashboards" /> },
       {
         path: "become-a-provider",
@@ -151,7 +151,10 @@ export const routes = [
         </RequireCapability>
       </RequireAuth>
     ),
-    children: areaRoutes(ADMIN_NAV, "/admin", "Admin", "Web dashboards"),
+    children: [
+      { path: "services", element: withSuspense(<AdminServicesPage />) },
+      ...areaRoutes(ADMIN_NAV, "/admin", "Admin", "Web dashboards").filter((r) => !("path" in r) || r.path !== "services"),
+    ],
   },
 ];
 

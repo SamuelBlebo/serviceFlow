@@ -137,6 +137,10 @@ export const serviceDoc = z
     priceRange: z.object({ minMinor: minorAmount, maxMinor: minorAmount }),
     isActive: z.boolean(),
     sortOrder: z.number().int(),
+    /** Server-maintained lowercase name used to keep names unique. */
+    nameKey: z.string().optional(),
+    createdAt: timestampLike.optional(),
+    updatedAt: timestampLike.optional(),
   })
   .refine((s) => s.priceRange.minMinor <= s.priceRange.maxMinor, { message: "Minimum price exceeds maximum" });
 export type ServiceDoc = z.infer<typeof serviceDoc>;

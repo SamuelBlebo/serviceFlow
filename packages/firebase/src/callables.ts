@@ -7,6 +7,8 @@ import {
   initiatePaymentInput,
   registerTechnicianInput,
   requestOtpInput,
+  setServiceActiveInput,
+  upsertServiceInput,
   requestOtpOutput,
   setUserStatusInput,
   verifyOtpInput,
@@ -28,7 +30,8 @@ import { z } from "zod";
  * schema. Names follow the deployed Functions v2 grouping ("group-name").
  *
  * `stage` records when each callable is implemented. Implemented so far:
- * `health` (Stage 2) and the `auth`/`admin` callables (Stage 3). The rest are
+ * `health` (Stage 2), the `auth`/`admin` callables (Stage 3) and the
+ * service-catalogue callables (Stage 5). The rest are
  * declared so the contract is fixed before building.
  */
 
@@ -36,7 +39,7 @@ export interface CallableDefinition<I extends z.ZodType, O extends z.ZodType> {
   name: string;
   input: I;
   output: O;
-  stage: "foundation" | "auth" | "admin" | "technicians" | "bookings" | "payments" | "wallet" | "ratings";
+  stage: "foundation" | "auth" | "admin" | "services" | "technicians" | "bookings" | "payments" | "wallet" | "ratings";
 }
 
 function defineCallable<I extends z.ZodType, O extends z.ZodType>(def: CallableDefinition<I, O>) {
@@ -59,6 +62,13 @@ export const callables = {
     input: setUserStatusInput,
     output: mutationResult,
     stage: "admin",
+  }),
+  upsertService: defineCallable({ name: "admin-upsertService", input: upsertServiceInput, output: mutationResult, stage: "services" }),
+  setServiceActive: defineCallable({
+    name: "admin-setServiceActive",
+    input: setServiceActiveInput,
+    output: mutationResult,
+    stage: "services",
   }),
 
   registerTechnician: defineCallable({
