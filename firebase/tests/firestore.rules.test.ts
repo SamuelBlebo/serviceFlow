@@ -36,8 +36,11 @@ beforeEach(async () => {
     await setDoc(doc(db, "serviceAreas/closed-area"), { name: "Closed", isActive: false });
     await setDoc(doc(db, "settings/platform"), { currency: "GHS", timezone: "Africa/Accra" });
     await setDoc(doc(db, "settings/internal"), { note: "not exposed" });
-    await setDoc(doc(db, "users/alice"), { displayName: "Alice", status: "ACTIVE" });
-    await setDoc(doc(db, "users/bob"), { displayName: "Bob", status: "ACTIVE" });
+    await setDoc(doc(db, "users/alice"), { displayName: "Alice", status: "ACTIVE", capabilities: { tech: false, admin: false } });
+    await setDoc(doc(db, "users/bob"), { displayName: "Bob", status: "ACTIVE", capabilities: { tech: false, admin: false } });
+    await setDoc(doc(db, "users/sam"), { displayName: "Sam", status: "SUSPENDED", capabilities: { tech: false, admin: false } });
+    await setDoc(doc(db, "otpChallenges/+233241234567"), { codeHash: "x", salt: "y", attempts: 0 });
+    await setDoc(doc(db, "rateLimits/otp_ip_abc"), { count: 1 });
     await setDoc(doc(db, "bookings/b1"), { customerId: "alice", status: "REQUESTED" });
     await setDoc(doc(db, "wallets/tech1"), { availableMinor: 5000 });
     await setDoc(doc(db, "adminActions/a1"), { actionType: "TECHNICIAN_VERIFIED" });
@@ -121,7 +124,54 @@ describe("deny by default", () => {
     await assertFails(setDoc(doc(admin(), "adminActions/forged"), { actionType: "X" }));
   });
 
-  it("a user cannot grant themselves a role by writing their user document", async () => {
+});
+
+describe("users (Stage 3)", () => {
+  it("a user can read their own account, an admin can read any, others cannot", async () => {
+    await assertSucceeds(getDoc(doc(customer("alice"), "users/alice")));
+    await assertSucceeds(getDoc(doc(admin(), "users/alice")));
+    await assertFails(getDoc(doc(customer("bob"), "users/alice")));
+    await assertFails(getDoc(doc(anon(), "users/alice")));
+  });
+
+  it("a user can change their display name", async () => {
+    await assertSucceeds(updateDoc(doc(customer("alice"), "users/alice"), { displayName: "Alice Mensah" }));
+  });
+
+  it("rejects an over-long or non-string display name", async () => {
+    await assertFails(updateDoc(doc(customer("alice"), "users/alice"), { displayName: "x".repeat(81) }));
+    await assertFails(updateDoc(doc(customer("alice"), "users/alice"), { displayName: 42 }));
+  });
+
+  it("a user cannot grant themselves a role or lift their own suspension", async () => {
     await assertFails(updateDoc(doc(customer("alice"), "users/alice"), { capabilities: { admin: true, tech: true } }));
+    // Smuggling a role change alongside an allowed field is still rejected.
+    await assertFails(updateDoc(doc(customer("alice"), "users/alice"), { displayName: "A", capabilities: { tech: true, admin: false } }));
+    await assertFails(updateDoc(doc(customer("sam"), "users/sam"), { status: "ACTIVE" }));
+  });
+
+  it("a suspended user cannot edit their account at all", async () => {
+    await assertFails(updateDoc(doc(customer("sam"), "users/sam"), { displayName: "Sam 2" }));
+  });
+
+  it("nobody edits another user's account from a client, not even an admin", async () => {
+    await assertFails(updateDoc(doc(customer("bob"), "users/alice"), { displayName: "hacked" }));
+    await assertFails(updateDoc(doc(admin(), "users/alice"), { status: "SUSPENDED" }));
+  });
+
+  it("accounts are never created or deleted from a client", async () => {
+    await assertFails(setDoc(doc(customer("newbie"), "users/newbie"), { displayName: "N", status: "ACTIVE" }));
+    await assertFails(deleteDoc(doc(customer("alice"), "users/alice")));
+  });
+});
+
+describe("auth internals are server-only", () => {
+  it("OTP challenges and rate limits are unreadable and unwritable for everyone", async () => {
+    for (const db of [anon(), customer(), technician(), admin()]) {
+      await assertFails(getDoc(doc(db, "otpChallenges/+233241234567")));
+      await assertFails(setDoc(doc(db, "otpChallenges/+233241234567"), { attempts: 0 }));
+      await assertFails(getDoc(doc(db, "rateLimits/otp_ip_abc")));
+      await assertFails(setDoc(doc(db, "rateLimits/otp_ip_abc"), { count: 0 }));
+    }
   });
 });

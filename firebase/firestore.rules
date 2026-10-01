@@ -10,9 +10,10 @@ rules_version = '2';
 //  3. Roles come ONLY from verified custom claims (request.auth.token), which
 //     only Cloud Functions can set.
 //
-// Stage 2 opens exactly three read paths: the public service catalogue, the
-// public service-area catalogue, and platform settings for signed-in users.
-// Every other collection stays closed until the stage that introduces it.
+// Open so far: the public service and service-area catalogues and platform
+// settings (Stage 2); account documents (Stage 3). Every other collection —
+// including otpChallenges and rateLimits, which are server-only forever —
+// stays closed until the stage that introduces it.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -22,6 +23,29 @@ service cloud.firestore {
 
     function isAdmin() {
       return signedIn() && request.auth.token.admin == true;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // The write changes ONLY the listed top-level fields.
+    function onlyChanges(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    // ── Accounts ───────────────────────────────────────────────────────
+    // Created and maintained by Cloud Functions (sign-in, suspension).
+    // The owner may change only their display name, and only while ACTIVE;
+    // status, capabilities and suspension details are server-owned.
+    match /users/{uid} {
+      allow read: if isSelf(uid) || isAdmin();
+      allow update: if isSelf(uid)
+        && resource.data.status == "ACTIVE"
+        && onlyChanges(["displayName"])
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() <= 80;
+      allow create, delete: if false;
     }
 
     // ── Public catalogue ───────────────────────────────────────────────

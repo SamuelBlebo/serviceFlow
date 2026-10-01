@@ -4,7 +4,7 @@ A Ghana-first platform that makes it easy for customers to find, book, track and
 
 **One Firebase backend. One source of truth. Web + mobile + WhatsApp working together.**
 
-> **Status: Stage 2 (Foundation) complete.** The monorepo, shared domain logic, Firebase configuration and web/mobile shells are in place and run on the local Firebase emulators. Product features (sign-in, bookings, payments, …) are built stage by stage — see [SERVICEFLOW_MIGRATION_PLAN.md](SERVICEFLOW_MIGRATION_PLAN.md).
+> **Status: Stage 3 (Authentication) complete.** Phone sign-in (web + mobile), admin sign-in, account suspension and the security rules behind them run on the local Firebase emulators, on top of the Stage 2 foundation. Product features (profiles, bookings, payments, …) are built stage by stage — see [SERVICEFLOW_MIGRATION_PLAN.md](SERVICEFLOW_MIGRATION_PLAN.md).
 
 ## Repository layout
 
@@ -45,11 +45,19 @@ pnpm emulators
 # Terminal 2 — seed services, 17 Accra service areas, settings and sample accounts
 pnpm seed
 
+# Optional — create a local administrator (prints a generated password)
+pnpm bootstrap:admin
+
 # Web app on http://localhost:5173 (copy apps/web/.env.example to apps/web/.env first)
 pnpm dev:web
 ```
 
 The project id is `demo-serviceflow`. Firebase treats `demo-*` projects as emulator-only, so local work can never touch real cloud resources.
+
+### Signing in locally
+
+- **Customers / technicians** — go to `/login` and enter any Ghanaian number (e.g. `024 555 0101`). With the emulator's mock OTP sender, the 6-digit code is shown on the verify screen ("Local emulator code") and in the Functions logs. This dev code is returned **only** inside the Functions emulator; outside it the mock sender refuses to run. Seeded technicians sign in with `024 100 0001` … `024 100 0004`.
+- **Admins** — run `pnpm bootstrap:admin`, then sign in at `/admin/login` with the printed email and password. Admin sessions last for the browser tab and end after 30 minutes of inactivity.
 
 ### Mobile
 
@@ -68,6 +76,7 @@ The Android emulator reaches the host's emulators at `10.0.2.2`; for a physical 
 | `pnpm typecheck` | TypeScript across every package (including legacy) |
 | `pnpm test` | Unit/component tests: shared, firebase contract, functions, web, mobile, legacy API |
 | `pnpm test:rules` | Firestore + Storage security rules tests against the emulators (needs Java) |
+| `pnpm test:integration` | Cloud Functions integration tests (OTP sign-in, suspension, callables over HTTP) against the Auth, Firestore and Functions emulators (needs Java) |
 | `pnpm build` | Web production build + bundled Cloud Functions |
 | `pnpm --filter @serviceflow/mobile bundle:check` | Compiles the Android JS bundle with `expo export` |
 

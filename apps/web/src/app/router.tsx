@@ -1,13 +1,16 @@
 import { createBrowserRouter } from "react-router";
+import { RequireAuth, RequireCapability } from "../lib/auth/guards";
+import { AdminLoginPage } from "../pages/auth/AdminLoginPage";
+import { PhoneLoginPage } from "../pages/auth/PhoneLoginPage";
+import { VerifyCodePage } from "../pages/auth/VerifyCodePage";
 import { LandingPage } from "../pages/public/LandingPage";
 import { NotFoundPage, PlaceholderPage } from "../pages/public/PlaceholderPage";
-import { AreaGate, AreaLayout, type AreaNavItem } from "./layouts/AreaLayout";
+import { ADMIN_AREA_IDLE_TIMEOUT_MS, AreaHome, AreaLayout, type AreaNavItem } from "./layouts/AreaLayout";
 import { PublicLayout } from "./layouts/PublicLayout";
 
 /**
  * Route map (SERVICEFLOW_MIGRATION_PLAN.md §11.2). One app, role-aware
- * areas. Stage 2 provides the shells; each area's pages are filled in by the
- * stage that builds that domain.
+ * areas. Guards are UX only; the server enforces access.
  */
 
 const CUSTOMER_NAV: AreaNavItem[] = [
@@ -44,11 +47,14 @@ const ADMIN_NAV: AreaNavItem[] = [
   { to: "/admin/audit", label: "Audit log" },
 ];
 
-function areaRoutes(nav: AreaNavItem[], base: string, capability: "customer" | "tech" | "admin") {
+function areaRoutes(nav: AreaNavItem[], base: string, areaName: string, stage: string) {
   return nav.map((item) =>
     item.to === base
-      ? { index: true, element: <AreaGate capability={capability} /> }
-      : { path: item.to.slice(base.length + 1), element: <AreaGate capability={capability} /> },
+      ? { index: true, element: <AreaHome areaName={areaName} stage={stage} /> }
+      : {
+          path: item.to.slice(base.length + 1),
+          element: <PlaceholderPage title={item.label} stage={stage} />,
+        },
   );
 }
 
@@ -61,10 +67,7 @@ export const routes = [
         path: "services",
         element: <PlaceholderPage title="Services" stage="Services">Browse every service we offer across Accra.</PlaceholderPage>,
       },
-      {
-        path: "how-it-works",
-        element: <PlaceholderPage title="How it works" stage="Web dashboards" />,
-      },
+      { path: "how-it-works", element: <PlaceholderPage title="How it works" stage="Web dashboards" /> },
       {
         path: "become-a-provider",
         element: (
@@ -75,14 +78,44 @@ export const routes = [
       },
       { path: "about", element: <PlaceholderPage title="About ServiceFlow" stage="Web dashboards" /> },
       { path: "contact", element: <PlaceholderPage title="Contact us" stage="Web dashboards" /> },
-      { path: "login", element: <PlaceholderPage title="Sign in" stage="Authentication" /> },
-      { path: "admin/login", element: <PlaceholderPage title="Admin sign in" stage="Authentication" /> },
+      { path: "login", element: <PhoneLoginPage /> },
+      { path: "login/verify", element: <VerifyCodePage /> },
+      { path: "admin/login", element: <AdminLoginPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },
-  { path: "app", element: <AreaLayout areaName="Customer" nav={CUSTOMER_NAV} />, children: areaRoutes(CUSTOMER_NAV, "/app", "customer") },
-  { path: "tech", element: <AreaLayout areaName="Service provider" nav={TECH_NAV} />, children: areaRoutes(TECH_NAV, "/tech", "tech") },
-  { path: "admin", element: <AreaLayout areaName="Admin" nav={ADMIN_NAV} />, children: areaRoutes(ADMIN_NAV, "/admin", "admin") },
+  {
+    // Every signed-in user is a customer.
+    path: "app",
+    element: (
+      <RequireAuth>
+        <AreaLayout areaName="Customer" nav={CUSTOMER_NAV} />
+      </RequireAuth>
+    ),
+    children: areaRoutes(CUSTOMER_NAV, "/app", "Customer", "Users and profiles / Bookings"),
+  },
+  {
+    path: "tech",
+    element: (
+      <RequireAuth>
+        <RequireCapability capability="tech">
+          <AreaLayout areaName="Service provider" nav={TECH_NAV} />
+        </RequireCapability>
+      </RequireAuth>
+    ),
+    children: areaRoutes(TECH_NAV, "/tech", "Service provider", "Technician onboarding"),
+  },
+  {
+    path: "admin",
+    element: (
+      <RequireAuth loginPath="/admin/login">
+        <RequireCapability capability="admin">
+          <AreaLayout areaName="Admin" nav={ADMIN_NAV} idleTimeoutMs={ADMIN_AREA_IDLE_TIMEOUT_MS} />
+        </RequireCapability>
+      </RequireAuth>
+    ),
+    children: areaRoutes(ADMIN_NAV, "/admin", "Admin", "Web dashboards"),
+  },
 ];
 
 export function createRouter() {

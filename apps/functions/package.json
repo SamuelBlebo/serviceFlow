@@ -11,7 +11,9 @@
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "seed": "tsx src/scripts/seed.ts"
+    "seed": "tsx src/scripts/seed.ts",
+    "test:integration": "vitest run --config vitest.integration.config.mts",
+    "bootstrap:admin": "tsx src/scripts/bootstrap-admin.ts"
   },
   "dependencies": {
     "@serviceflow/firebase": "workspace:*",
@@ -25,6 +27,7 @@
     "esbuild": "^0.28.2",
     "tsx": "^4.23.0",
     "typescript": "~5.9.3",
-    "vitest": "^5.0.2"
+    "vitest": "^5.0.2",
+    "firebase": "12.17.1"
   }
 }

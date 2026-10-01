@@ -33,8 +33,14 @@ export const userDoc = z.object({
   email: z.string().email().nullable(),
   displayName: z.string().max(80),
   status: z.enum(UserStatus),
+  /** Display mirror of the custom claims. Rules and Functions trust ONLY the token. */
   capabilities: z.object({ tech: z.boolean(), admin: z.boolean() }),
   createdAt: timestampLike,
+  lastLoginAt: timestampLike.optional(),
+  suspension: z
+    .object({ reason: z.string(), byUid: docId, at: timestampLike })
+    .nullable()
+    .optional(),
 });
 export type UserDoc = z.infer<typeof userDoc>;
 

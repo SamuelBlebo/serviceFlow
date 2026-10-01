@@ -26,6 +26,7 @@ export const COLLECTIONS = {
   whatsappInbound: "whatsappInbound",
   adminActions: "adminActions",
   rateLimits: "rateLimits",
+  otpChallenges: "otpChallenges",
   reports: "reports",
 } as const;
 
@@ -96,6 +97,9 @@ export const paths = {
   conversation: (e164Phone: string) => `${COLLECTIONS.conversations}/${seg(e164Phone, "phone")}`,
   whatsappInbound: (messageId: string) => `${COLLECTIONS.whatsappInbound}/${seg(messageId, "message")}`,
   adminAction: (id: string) => `${COLLECTIONS.adminActions}/${seg(id, "admin action")}`,
+  /** One active OTP challenge per phone (E.164). Server-only. */
+  otpChallenge: (e164Phone: string) => `${COLLECTIONS.otpChallenges}/${seg(e164Phone, "phone")}`,
+  rateLimit: (key: string) => `${COLLECTIONS.rateLimits}/${seg(key, "rate limit")}`,
 } as const;
 
 /** Storage object paths (§8.5). Rules enforce ownership on exactly these prefixes. */
