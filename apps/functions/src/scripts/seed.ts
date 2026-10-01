@@ -14,6 +14,7 @@ import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { Timestamp, getFirestore } from "firebase-admin/firestore";
 import { paths } from "@serviceflow/firebase";
+import { serviceNameKey } from "@serviceflow/shared";
 import {
   FEATURE_FLAGS,
   PLATFORM_SETTINGS,
@@ -45,7 +46,7 @@ async function main(): Promise<void> {
   const now = Timestamp.now();
 
   const batch = db.batch();
-  for (const { id, doc } of SERVICES) batch.set(db.doc(paths.service(id)), doc);
+  for (const { id, doc } of SERVICES) batch.set(db.doc(paths.service(id)), { ...doc, nameKey: serviceNameKey(doc.name) });
   for (const { id, doc } of SERVICE_AREAS) batch.set(db.doc(paths.serviceArea(id)), doc);
   batch.set(db.doc(paths.platformSettings()), PLATFORM_SETTINGS);
   batch.set(db.doc(paths.featureFlags()), FEATURE_FLAGS);

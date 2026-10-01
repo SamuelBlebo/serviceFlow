@@ -4,7 +4,7 @@ A Ghana-first platform that makes it easy for customers to find, book, track and
 
 **One Firebase backend. One source of truth. Web + mobile + WhatsApp working together.**
 
-> **Status: Stage 4 (Users and profiles) complete.** Phone and admin sign-in, account suspension, and customer profiles with Ghana-style saved addresses (landmark directions + GhanaPost GPS) run on the local Firebase emulators. Bookings, technician onboarding, payments and more are built stage by stage — see [SERVICEFLOW_MIGRATION_PLAN.md](SERVICEFLOW_MIGRATION_PLAN.md).
+> **Status: Stage 5 (Services) complete.** Phone and admin sign-in, account suspension, customer profiles with Ghana-style addresses, and an admin-managed service catalogue (audited create/edit/hide, public `/services` pages) run on the local Firebase emulators. Technician onboarding, bookings, payments and more are built stage by stage — see [SERVICEFLOW_MIGRATION_PLAN.md](SERVICEFLOW_MIGRATION_PLAN.md).
 
 ## Repository layout
 
@@ -57,7 +57,7 @@ The project id is `demo-serviceflow`. Firebase treats `demo-*` projects as emula
 ### Signing in locally
 
 - **Customers / technicians** — go to `/login` and enter any Ghanaian number (e.g. `024 555 0101`). With the emulator's mock OTP sender, the 6-digit code is shown on the verify screen ("Local emulator code") and in the Functions logs. This dev code is returned **only** inside the Functions emulator; outside it the mock sender refuses to run. Seeded technicians sign in with `024 100 0001` … `024 100 0004`; the seeded customer (with a saved address) with `020 123 4567`. A brand-new number goes through a one-time welcome step (name + optional main address).
-- **Admins** — run `pnpm bootstrap:admin`, then sign in at `/admin/login` with the printed email and password. Admin sessions last for the browser tab and end after 30 minutes of inactivity.
+- **Admins** — run `pnpm bootstrap:admin`, then sign in at `/admin/login` with the printed email and password. Manage the catalogue at `/admin/services`. Admin sessions last for the browser tab and end after 30 minutes of inactivity.
 
 ### Mobile
 

@@ -15,6 +15,11 @@ export function messageFromError(error: unknown): string {
   }
   if (code === "auth/too-many-requests") return "Too many attempts. Wait a moment and try again.";
   if (code === "auth/user-disabled") return "This account has been suspended. Contact ServiceFlow support.";
+  // Validation errors carry per-field messages from the shared schemas; show the first one.
+  if (code === "functions/invalid-argument") {
+    const fields = (e as { details?: { details?: Array<{ message?: string }> } } | null)?.details?.details;
+    if (fields?.[0]?.message) return fields[0].message;
+  }
   if (code.startsWith("functions/") && e?.message && code !== "functions/internal") return e.message;
   return "Something went wrong. Please try again.";
 }

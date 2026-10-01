@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { BookingStatus, IdDocumentType, MobileMoneyNetwork, PaymentMethod, PreferredTime } from "../enums";
 import { availabilityWindow, serviceAreaCoverage } from "./documents";
+import { SERVICE_LIMITS, slugify } from "../catalogue";
 import { PROFILE_LIMITS, normalizeGhanaPostGps } from "../profile";
-import { docId, ghanaPhone, latLng, minorAmount, personName, requestId } from "./primitives";
+import { docId, ghanaPhone, latLng, minorAmount, optionalInput, personName, requestId } from "./primitives";
 
 /**
  * Callable request/response schemas. Validated on the server (authoritative)
@@ -31,7 +32,7 @@ export const updateTechnicianServicesInput = z.object({
   requestId,
   serviceIds: z.array(docId).min(1).max(20),
   serviceAreas: z.array(serviceAreaCoverage).min(1).max(10),
-  weeklyAvailability: z.array(availabilityWindow).max(14).optional(),
+  weeklyAvailability: optionalInput(z.array(availabilityWindow).max(14)),
 });
 
 export const submitVerificationInput = z.object({
@@ -39,7 +40,7 @@ export const submitVerificationInput = z.object({
   idType: z.enum(IdDocumentType),
   idNumber: z.string().trim().min(4).max(40),
   idPhotoPath: z.string().min(1),
-  selfiePath: z.string().min(1).optional(),
+  selfiePath: optionalInput(z.string().min(1)),
 });
 
 // ── Bookings ─────────────────────────────────────────────────────────────
@@ -50,12 +51,12 @@ export const createBookingInput = z
     serviceId: docId,
     problemDescription: z.string().trim().min(3).max(1000),
     location: latLng.extend({
-      address: z.string().max(200).optional(),
-      notes: z.string().max(300).optional(),
+      address: optionalInput(z.string().max(200)),
+      notes: optionalInput(z.string().max(300)),
     }),
     preferredTime: z.enum(PreferredTime),
     /** ISO-8601; required when preferredTime is SCHEDULED (legacy rule). */
-    scheduledAt: z.string().datetime().optional(),
+    scheduledAt: optionalInput(z.string().datetime()),
   })
   .refine((v) => v.preferredTime !== PreferredTime.SCHEDULED || Boolean(v.scheduledAt), {
     message: "scheduledAt is required when preferredTime is SCHEDULED",
@@ -69,7 +70,7 @@ export const respondToOfferInput = z.object({
   requestId,
   bookingId: docId,
   accept: z.boolean(),
-  reason: z.string().max(300).optional(),
+  reason: optionalInput(z.string().max(300)),
 });
 
 /** The technician's physical job steps — the only statuses they may advance to directly. */
@@ -84,7 +85,7 @@ export const advanceJobInput = z.object({
   requestId,
   bookingId: docId,
   to: z.enum(TECHNICIAN_JOB_STEPS),
-  location: latLng.optional(),
+  location: optionalInput(latLng),
 });
 
 export const submitQuoteInput = z.object({ requestId, bookingId: docId, amountMinor: minorAmount });
@@ -100,8 +101,8 @@ export const initiatePaymentInput = z
     requestId,
     bookingId: docId,
     method: z.enum(PaymentMethod),
-    msisdn: ghanaPhone.optional(),
-    network: z.enum(MobileMoneyNetwork).optional(),
+    msisdn: optionalInput(ghanaPhone),
+    network: optionalInput(z.enum(MobileMoneyNetwork)),
   })
   .refine((v) => v.method !== PaymentMethod.MOBILE_MONEY || (v.msisdn && v.network), {
     message: "Mobile Money payments need a phone number and network",
@@ -119,7 +120,7 @@ export const submitRatingInput = z.object({
   requestId,
   bookingId: docId,
   score: z.number().int().min(1).max(5),
-  comment: z.string().trim().max(1000).optional(),
+  comment: optionalInput(z.string().trim().max(1000)),
 });
 
 // ── Authentication (Stage 3) ─────────────────────────────────────────────
@@ -193,3 +194,42 @@ export const addressInput = z.object({
 });
 export type AddressInput = z.input<typeof addressInput>;
 export type AddressValues = z.output<typeof addressInput>;
+
+// ── Service catalogue (Stage 5) — admin callables ────────────────────────
+
+const priceMinor = minorAmount.refine((v) => v <= SERVICE_LIMITS.maxPriceMinor, { message: "That price is too high" });
+
+/**
+ * Create (no serviceId) or update (serviceId = existing slug) a service.
+ * Prices are integer pesewas; the admin UI converts from cedis.
+ */
+export const upsertServiceInput = z
+  .object({
+    requestId,
+    serviceId: optionalInput(docId),
+    name: z
+      .string()
+      .transform((v) => v.trim().replace(/\s+/g, " "))
+      .pipe(z.string().min(SERVICE_LIMITS.nameMin, "Enter a service name").max(SERVICE_LIMITS.nameMax)),
+    description: z.string().trim().max(SERVICE_LIMITS.descriptionMax),
+    priceRange: z.object({ minMinor: priceMinor, maxMinor: priceMinor }),
+    sortOrder: z.number().int().min(0).max(SERVICE_LIMITS.sortOrderMax),
+  })
+  .refine((v) => v.priceRange.minMinor <= v.priceRange.maxMinor, {
+    message: "The lowest price can't be more than the highest price",
+    path: ["priceRange"],
+  })
+  .refine((v) => v.serviceId !== undefined || slugify(v.name).length > 0, {
+    message: "Use letters or numbers in the service name",
+    path: ["name"],
+  });
+export type UpsertServiceInput = z.input<typeof upsertServiceInput>;
+
+/** Hide or re-show a service. Services are never deleted (bookings reference them). */
+export const setServiceActiveInput = z.object({
+  requestId,
+  serviceId: docId,
+  isActive: z.boolean(),
+  reason: optionalInput(z.string().trim().max(300)),
+});
+export type SetServiceActiveInput = z.input<typeof setServiceActiveInput>;

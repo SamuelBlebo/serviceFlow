@@ -1,7 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { render as rtlRender, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { MemoryRouter } from "react-router";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ServiceList } from "./ServiceList";
+
+const render = (ui: ReactElement) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>);
 
 const plumbing = {
   id: "plumbing",
@@ -24,6 +28,7 @@ describe("ServiceList", () => {
     render(<ServiceList state={{ status: "ready", services: [plumbing] }} />);
     expect(screen.getByRole("heading", { name: "Plumbing" })).toBeInTheDocument();
     expect(screen.getByText("GH₵100.00 – GH₵400.00")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Plumbing" })).toHaveAttribute("href", "/services/plumbing");
   });
 
   it("explains an empty catalogue instead of rendering nothing", () => {

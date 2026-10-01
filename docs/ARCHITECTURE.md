@@ -70,6 +70,12 @@ Phone (customer / technician)                         Admin
 - Multi-document changes are batched (profile + first address + `users.displayName`; delete-default + move-default). Snapshots read pending server timestamps as estimates so local writes render immediately, but the UI confirms success only after the write is accepted.
 - Limits rules can't express (at most 10 saved addresses) are enforced in the apps.
 
+## Service catalogue (Stage 5)
+
+- Services are data, changed only through `admin-upsertService` / `admin-setServiceActive` (admin claim + active account). Each call is a transaction that also writes `adminActions/{admin}_{requestId}` (before/after of changed fields), so retries are idempotent.
+- The id is the slug (`home-cleaning`), fixed at creation; names are unique case-insensitively (`nameKey`); prices are pesewas with min ≤ max; services are hidden, never deleted. Rules keep catalogue writes server-only and hide inactive services from everyone but admins.
+- **Callable inputs and `null`**: the Firebase callable SDKs serialise `undefined` as `null`. Every optional callable field uses `optionalInput()` (shared), which treats `null` as absent — required for any client, including WhatsApp later.
+
 ## Cloud Functions build
 
 `firebase.json` points Functions at `apps/functions/dist`, produced by `apps/functions/scripts/build.mjs`: an esbuild bundle (inlining `@serviceflow/*` and zod) plus a generated `package.json` listing only `firebase-admin` and `firebase-functions`. This avoids `workspace:*` dependencies breaking the cloud `npm install`. `src/lib/global-options.ts` must stay the first import in `src/index.ts` so region and instance limits apply to every function.
@@ -84,5 +90,6 @@ Phone (customer / technician)                         Admin
 ## Stage log
 
 - **Stage 2 — Foundation**: monorepo, shared domain packages, Firebase config (deny-by-default rules, indexes), Functions skeleton with health checks and seed, web and mobile shells reading live services.
+- **Stage 5 — Services**: audited admin catalogue callables, admin services page, public services list and detail pages, null-tolerant optional callable inputs.
 - **Stage 4 — Users and profiles**: customer profiles and saved addresses (rules-validated client writes), welcome step, profile page, mobile display-name editing.
 - **Stage 3 — Authentication**: custom phone OTP → custom token, admin email/password, account records, suspension with audit, `users` rules, web + mobile sign-in, Functions integration tests on the emulators.
