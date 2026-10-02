@@ -14,7 +14,7 @@ rules_version = '2';
 // settings (Stage 2); account documents (Stage 3); customer profiles and
 // saved addresses (Stage 4); technician profiles and verification records
 // (Stage 6); read access to bookings, their history and private contact
-// (Stage 7). Every other collection —
+// (Stage 7); job photo records (Stage 9). Every other collection —
 // including otpChallenges and rateLimits, which are server-only forever —
 // stays closed until the stage that introduces it.
 service cloud.firestore {
@@ -203,6 +203,11 @@ service cloud.firestore {
           || (signedIn() && booking(bookingId).customerId == request.auth.uid)
           || (signedIn() && booking(bookingId).technicianId == request.auth.uid
               && booking(bookingId).status in ["ACCEPTED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS", "COMPLETED"]);
+        allow write: if false;
+      }
+      // Before/after job photos: registered by bookings-addJobPhoto.
+      match /media/{mediaId} {
+        allow read: if isAdmin() || isParticipant(booking(bookingId));
         allow write: if false;
       }
       // Other subcollections (e.g. idempotency receipts) stay closed.

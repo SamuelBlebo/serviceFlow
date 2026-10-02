@@ -97,3 +97,35 @@ describe("identity documents (private)", () => {
     await assertFails(uploadBytes(ref(storageAs("tech1"), "verifications/tech1/s3/huge.jpg"), jpeg(8 * 1024 * 1024 + 1), meta()));
   });
 });
+
+describe("job photos (Stage 9)", () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      const booking = (status: string) => ({ customerId: "cust1", technicianId: "tech1", participantIds: ["cust1", "tech1"], status });
+      await setDoc(doc(db, "bookings/onsite"), booking("ARRIVED"));
+      await setDoc(doc(db, "bookings/travelling"), booking("EN_ROUTE"));
+      await setDoc(doc(db, "bookings/closed"), booking("CUSTOMER_CONFIRMED"));
+      await uploadString(ref(ctx.storage(), "bookings/onsite/BEFORE/existing.jpg"), "x", "raw", { contentType: "image/jpeg" });
+    });
+  });
+
+  it("the assigned technician uploads before/after photos on site; participants and admins can view them", async () => {
+    await assertSucceeds(uploadBytes(ref(storageAs("tech1"), "bookings/onsite/BEFORE/p1.jpg"), jpeg(), meta()));
+    await assertSucceeds(uploadBytes(ref(storageAs("tech1"), "bookings/onsite/AFTER/p2.jpg"), jpeg(), meta()));
+    await assertSucceeds(getBytes(ref(storageAs("cust1", {}), "bookings/onsite/BEFORE/existing.jpg")));
+    await assertSucceeds(getBytes(ref(storageAs("boss", { admin: true }), "bookings/onsite/BEFORE/existing.jpg")));
+    await assertFails(getBytes(ref(storageAs("stranger", {}), "bookings/onsite/BEFORE/existing.jpg")));
+  });
+
+  it("refuses other technicians, the customer, the wrong stage or kind, overwrites, non-images and huge files", async () => {
+    await assertFails(uploadBytes(ref(storageAs("tech2"), "bookings/onsite/BEFORE/p.jpg"), jpeg(), meta()));
+    await assertFails(uploadBytes(ref(storageAs("cust1", {}), "bookings/onsite/BEFORE/p.jpg"), jpeg(), meta()));
+    await assertFails(uploadBytes(ref(storageAs("tech1"), "bookings/travelling/BEFORE/p.jpg"), jpeg(), meta()));
+    await assertFails(uploadBytes(ref(storageAs("tech1"), "bookings/closed/AFTER/p.jpg"), jpeg(), meta()));
+    await assertFails(uploadBytes(ref(storageAs("tech1"), "bookings/onsite/PROBLEM/p.jpg"), jpeg(), meta()));
+    await assertFails(uploadBytes(ref(storageAs("tech1"), "bookings/onsite/BEFORE/existing.jpg"), jpeg(), meta()));
+    await assertFails(uploadBytes(ref(storageAs("tech1"), "bookings/onsite/BEFORE/doc.pdf"), jpeg(), meta("application/pdf")));
+    await assertFails(uploadBytes(ref(storageAs("tech1"), "bookings/onsite/BEFORE/big.jpg"), jpeg(9 * 1024 * 1024), meta()));
+  });
+});

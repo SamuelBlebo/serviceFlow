@@ -2,7 +2,7 @@ import { BOOKING_STATUS_LABELS, BookingActor, BookingStatus, canAdminSetPrice, f
 import { type FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 import { Button, SelectField, TextAreaField, TextField } from "../../components/ui";
-import { CancelPanel, Detail, StatusBadge, Timeline, priceText, whenText } from "../../features/bookings/BookingParts";
+import { CancelPanel, Detail, JobRecord, StatusBadge, Timeline, priceText, whenText } from "../../features/bookings/BookingParts";
 import { isReauthRequired } from "../../features/technician/ReviewActions";
 import { FullPageSpinner } from "../../lib/auth/guards";
 import {
@@ -10,11 +10,14 @@ import {
   type BookingContact,
   type BookingStore,
   type HistoryEntry,
+  type JobPhoto,
   bookingStore,
+  photoUrl,
   watchAdminBookings,
   watchBooking,
   watchContact,
   watchHistory,
+  watchPhotos,
 } from "../../lib/bookings/booking-store";
 import { messageFromError } from "../../lib/errors";
 import { newRequestId } from "../../lib/request-id";
@@ -25,6 +28,8 @@ export interface AdminBookingDeps {
   watchOne?: typeof watchBooking;
   watchSteps?: typeof watchHistory;
   watchPrivate?: typeof watchContact;
+  watchJobPhotos?: typeof watchPhotos;
+  loadUrl?: typeof photoUrl;
 }
 
 const dateTime = (ms: number) => new Date(ms).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -192,18 +197,21 @@ export function AdminBookingDetailPage({
   watchOne = watchBooking,
   watchSteps = watchHistory,
   watchPrivate = watchContact,
+  watchJobPhotos = watchPhotos,
+  loadUrl = photoUrl,
 }: AdminBookingDeps = {}) {
   const { id = "" } = useParams();
   const [booking, setBooking] = useState<Booking | null | undefined>(undefined);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [contact, setContact] = useState<BookingContact | null>(null);
+  const [photos, setPhotos] = useState<JobPhoto[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fail = () => setError("We couldn't load this booking. Check your connection.");
-    const unsubs = [watchOne(id, setBooking, fail), watchSteps(id, setHistory, fail), watchPrivate(id, setContact, fail)];
+    const unsubs = [watchOne(id, setBooking, fail), watchSteps(id, setHistory, fail), watchPrivate(id, setContact, fail), watchJobPhotos(id, setPhotos, () => setPhotos([]))];
     return () => unsubs.forEach((u) => u());
-  }, [id, watchOne, watchSteps, watchPrivate]);
+  }, [id, watchOne, watchSteps, watchPrivate, watchJobPhotos]);
 
   if (error) return <p role="alert" className="mx-auto max-w-4xl px-4 py-10 text-ink-700">{error}</p>;
   if (booking === undefined) return <FullPageSpinner />;
@@ -272,6 +280,8 @@ export function AdminBookingDetailPage({
         <ReassignForm booking={booking} store={store} />
       </div>
       <CancelPanel booking={booking} actor={BookingActor.ADMIN} store={store} label="Cancel booking (admin)" />
+
+      <JobRecord booking={booking} photos={photos} loadUrl={loadUrl} />
 
       <section>
         <h2 className="mb-3 font-semibold text-ink-900">History</h2>

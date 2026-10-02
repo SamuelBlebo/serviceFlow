@@ -10,9 +10,9 @@ import {
   formatMoneyRange,
   selectableCandidates,
 } from "@serviceflow/shared";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { Button, TextAreaField } from "../../components/ui";
-import type { Booking, BookingStore, HistoryEntry } from "../../lib/bookings/booking-store";
+import type { Booking, BookingStore, HistoryEntry, JobPhoto } from "../../lib/bookings/booking-store";
 import { messageFromError } from "../../lib/errors";
 import { newRequestId } from "../../lib/request-id";
 
@@ -308,5 +308,48 @@ export function CancelPanel({
         </Button>
       </div>
     </div>
+  );
+}
+
+/** The technician's before/after photos and completion notes. */
+export function JobRecord({ booking, photos, loadUrl }: { booking: Booking; photos: JobPhoto[]; loadUrl(path: string): Promise<string> }) {
+  const [urls, setUrls] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let cancelled = false;
+    for (const p of photos) {
+      if (urls[p.id]) continue;
+      loadUrl(p.storagePath)
+        .then((url) => !cancelled && setUrls((u) => ({ ...u, [p.id]: url })))
+        .catch(() => undefined);
+    }
+    return () => {
+      cancelled = true;
+    };
+    // `urls` is deliberately not a dependency: it only caches what was loaded.
+  }, [photos, loadUrl]);
+  if (photos.length === 0 && !booking.completionNotes) return null;
+  return (
+    <section className="rounded-xl border border-ink-100 bg-white p-5" data-testid="job-record">
+      <h2 className="font-semibold text-ink-900">From your technician</h2>
+      {booking.completionNotes && <p className="mt-2 text-ink-800">“{booking.completionNotes}”</p>}
+      {(["BEFORE", "AFTER"] as const).map((kind) => {
+        const list = photos.filter((p) => p.kind === kind);
+        if (list.length === 0) return null;
+        return (
+          <div key={kind} className="mt-4">
+            <h3 className="text-sm font-medium text-ink-600">{kind === "BEFORE" ? "Before" : "After"}</h3>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {list.map((p) =>
+                urls[p.id] ? (
+                  <img key={p.id} src={urls[p.id]} alt={`${kind === "BEFORE" ? "Before" : "After"} photo`} className="h-28 w-28 rounded-lg object-cover" />
+                ) : (
+                  <span key={p.id} className="h-28 w-28 animate-pulse rounded-lg bg-ink-100" aria-label="Loading photo" />
+                ),
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </section>
   );
 }

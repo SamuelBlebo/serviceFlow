@@ -54,6 +54,7 @@ beforeEach(async () => {
       await setDoc(doc(db, `bookings/${id}/private/contact`), { customerPhone: "+233241234567" });
       await setDoc(doc(db, `bookings/${id}/statusHistory/h1`), { to: "REQUESTED" });
       await setDoc(doc(db, `bookings/${id}/requests/cust_req1`), { action: "x" });
+      await setDoc(doc(db, `bookings/${id}/media/m1`), { kind: "AFTER", storagePath: `bookings/${id}/AFTER/a.jpg` });
     }
   });
 });
@@ -119,5 +120,15 @@ describe("idempotency receipts", () => {
     await assertFails(getDoc(doc(as("cust"), "bookings/accepted/requests/cust_req1")));
     await assertFails(getDoc(doc(as("boss", { admin: true }), "bookings/accepted/requests/cust_req1")));
     await assertFails(setDoc(doc(as("cust"), "bookings/accepted/requests/cust_req2"), { action: "fake" }));
+  });
+});
+
+describe("job photo records", () => {
+  it("are readable by participants and admins and written only by the server", async () => {
+    await assertSucceeds(getDocs(collection(as("cust"), "bookings/accepted/media")));
+    await assertSucceeds(getDocs(collection(as("tech", { tech: true }), "bookings/accepted/media")));
+    await assertSucceeds(getDoc(doc(as("boss", { admin: true }), "bookings/accepted/media/m1")));
+    await assertFails(getDocs(collection(as("stranger"), "bookings/accepted/media")));
+    await assertFails(setDoc(doc(as("tech", { tech: true }), "bookings/accepted/media/fake"), { kind: "AFTER" }));
   });
 });

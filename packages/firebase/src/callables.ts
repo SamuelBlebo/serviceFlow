@@ -1,4 +1,5 @@
 import {
+  addJobPhotoInput,
   advanceJobInput,
   cancelBookingInput,
   confirmCompletionInput,
@@ -116,6 +117,7 @@ export const callables = {
     output: mutationResult,
     stage: "bookings",
   }),
+  addJobPhoto: defineCallable({ name: "bookings-addJobPhoto", input: addJobPhotoInput, output: mutationResult, stage: "bookings" }),
   advanceJob: defineCallable({ name: "bookings-advance", input: advanceJobInput, output: mutationResult, stage: "bookings" }),
   submitQuote: defineCallable({ name: "bookings-submitQuote", input: submitQuoteInput, output: mutationResult, stage: "bookings" }),
   respondToQuote: defineCallable({

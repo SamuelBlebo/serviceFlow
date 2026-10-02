@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Status | **Stage 8 (Matching) complete (2026-10-02). Stage 9 (Technician mobile workflow) not started.** Stage records: §20.5 (Stage 2), §21 (Stage 3), §22 (Stage 4), §23 (Stage 5), §24 (Stage 6), §25 (Stage 7), §26 (Stage 8). |
+| Status | **Stage 9 (Technician mobile workflow) complete (2026-10-02). Stage 10 (Web dashboards) not started.** Stage records: §20.5 (Stage 2), §21 (Stage 3), §22 (Stage 4), §23 (Stage 5), §24 (Stage 6), §25 (Stage 7), §26 (Stage 8), §27 (Stage 9). |
 | Date | 2026-09-30 |
 | Audited commit | `effae03` (main): "Initial commit: Home Service backend + WhatsApp booking slice" |
 | Scope | Audit and blueprint only. No code, data, Firebase or deployment changes were made |
@@ -1799,3 +1799,42 @@ Stage 7 was committed as `fa8fc3f` on `stage-7-bookings`. Stage 8 is on `stage-8
 - Technician job screens (offer card with countdown, accept/decline, next step, quote) — Technician mobile workflow stage (next). The callables are built and tested.
 - A geohash pre-filter for large technician counts (§8.3) — only needed beyond a few thousand online technicians per service; scoring code won't change.
 - The scheduled sweep doesn't run in the Functions emulator; it is covered by integration tests that call it directly.
+
+## 27. Stage 9: Technician mobile workflow (2026-10-02)
+
+Stage 8 was committed as `3c055e8` on `stage-8-matching`. Stage 9 is on `stage-9-tech-workflow`. It implements the §12.3 workflows that don't depend on later stages (earnings/payouts come with Wallet, push offers with Notifications).
+
+### Scope delivered
+
+| Area | Delivered |
+| --- | --- |
+| Shared | `TECH_STEP_LABELS`, `nextTechnicianStep`, `canAddJobPhoto`, `jobBucket`, `JOB_LIMITS`; booking gains `enRouteLocation` and `completionNotes`; `advanceJobInput` takes optional notes; `addJobPhotoInput` |
+| Functions | `bookings-advance` stores the en-route location (once) and completion notes; new `bookings-addJobPhoto` (assigned technician, right status, file exists in the booking's kind folder, image ≤ 8 MB, max 10, idempotent per file and request) |
+| Rules | Storage `bookings/{id}/{BEFORE|AFTER}/{file}`: assigned technician only, ARRIVED/IN_PROGRESS/COMPLETED, create-only, image ≤ 8 MB; read by participants and admins. Firestore `bookings/{id}/media`: participants and admins read, server-only writes |
+| Mobile | Jobs tab (new requests with countdown, active, upcoming, done); job screen with accept/decline, single next-step button, on-site quote within the range (validated before sending), customer contact after acceptance with Call and Navigate (Google Maps intent, web fallback), one-time location at "on my way" (`expo-location`, foreground only, permission text in app config), before/after photos (camera, compressed, Storage upload + callable), completion notes, cancel with reason; Home shows the current job and new requests |
+| Web | Customer and admin booking pages show the technician's notes and before/after photos |
+
+### Verified results
+
+| Check | Result |
+| --- | --- |
+| `pnpm install --frozen-lockfile` | OK (`expo-location` 57.0.x added) |
+| `pnpm typecheck` | 8/8 packages |
+| `pnpm test` | 458 pass: shared 193, firebase 13, functions 42, web 111, mobile 54, legacy API 45 (unchanged) |
+| `pnpm test:rules` | 66 pass (3 new: job photo Storage rules ×2, media records) |
+| `pnpm test:integration` | 92 pass (4 new: en-route location once and completion notes; photo recorded once per file; folder/file/type/stage/owner checks; 10-photo cap) |
+| `pnpm build` | OK; web first-load chunk 69 KB gzipped |
+| Mobile | `expo install --check` up to date; config plugin applies the location permission text; `expo export` Android bundle OK |
+| Browser end to end | Bookings 27/27 (now with the technician uploading real before/after photos through Storage rules and finishing with notes, and the customer's browser showing both photos from private Storage), technicians 15/15, profiles 14/14, services 12/12, auth 14/14 |
+
+### Found and fixed during the stage
+
+- **Route clash:** the job detail at `/jobs/[id]` would have shared the `/jobs` path with the Jobs tab; it lives at `/job/[id]`.
+
+### Not in this stage
+
+- Push notification for new offers (high-priority FCM, full-screen card) — Notifications stage. Offers appear live in the Jobs tab and on Home while the app is open.
+- Earnings, wallet and payouts tabs — Wallet stage.
+- Web technician job pages (`/tech/jobs`) — Web dashboards stage.
+- An offline upload queue for photos: uploads run directly (React Native Firebase retries transient failures); a persistent queue can follow if field testing shows the need.
+- Running the app on a device (no Android SDK here): verified by component tests, typecheck, config introspection and the Metro bundle.

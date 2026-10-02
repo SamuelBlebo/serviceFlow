@@ -2,6 +2,7 @@ import { COLLECTIONS, parseDoc, parseDocs, paths, type WithId } from "@servicefl
 import {
   type BookingContactDoc,
   type BookingDoc,
+  type BookingMediaDoc,
   type BookingStatus,
   type BookingStatusHistoryDoc,
   type CancelBookingInput,
@@ -14,8 +15,11 @@ import {
   type SetBookingPriceInput,
   bookingContactDoc,
   bookingDoc,
+  bookingMediaDoc,
   bookingStatusHistoryDoc,
 } from "@serviceflow/shared";
+import { getDownloadURL, ref } from "firebase/storage";
+import { storage } from "../firebase/storage";
 import { type DocumentSnapshot, collection, doc, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { db } from "../firebase/firestore";
 import { call } from "../firebase/functions";
@@ -29,6 +33,7 @@ import { call } from "../firebase/functions";
 export type Booking = WithId<BookingDoc>;
 export type HistoryEntry = WithId<BookingStatusHistoryDoc>;
 export type BookingContact = BookingContactDoc;
+export type JobPhoto = WithId<BookingMediaDoc>;
 
 const estimated = (s: DocumentSnapshot) => ({ id: s.id, data: () => s.data({ serverTimestamps: "estimate" }) });
 const warn = (what: string) => (id: string, e: unknown) => console.warn(`Skipping invalid ${what} ${id}`, e);
@@ -65,6 +70,17 @@ export function watchContact(id: string, onData: (c: BookingContact | null) => v
     onError,
   );
 }
+
+/** Before/after photos the technician added (rules: participants and admins). */
+export function watchPhotos(id: string, onData: (p: JobPhoto[]) => void, onError: (e: Error) => void): () => void {
+  return onSnapshot(
+    query(collection(db(), paths.bookingMedia(id)), orderBy("createdAt", "asc")),
+    (snap) => onData(parseDocs(bookingMediaDoc, snap.docs.map(estimated), warn("photo"))),
+    onError,
+  );
+}
+
+export const photoUrl = (path: string) => getDownloadURL(ref(storage(), path));
 
 /** Admin: recent bookings, optionally in one status. */
 export function watchAdminBookings(status: BookingStatus | "ALL", onData: (b: Booking[]) => void, onError: (e: Error) => void): () => void {

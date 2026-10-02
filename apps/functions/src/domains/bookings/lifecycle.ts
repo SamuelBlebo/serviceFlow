@@ -102,7 +102,7 @@ export async function respondToOffer(
 export async function advanceJob(
   deps: BookingDeps,
   uid: string,
-  input: { requestId: string; bookingId: string; to: BookingStatus },
+  input: { requestId: string; bookingId: string; to: BookingStatus; location?: { lat: number; lng: number }; notes?: string },
 ): Done {
   const { db } = deps;
   await db.runTransaction(async (tx) => {
@@ -112,7 +112,17 @@ export async function advanceJob(
     if (input.to === BookingStatus.IN_PROGRESS && booking.pricing.quoteStatus !== QuoteStatus.ACCEPTED) {
       throw new ConflictError("The customer needs to accept your price before you start the work.");
     }
-    writeTransition(tx, db, { ref, booking, to: input.to, actor: BookingActor.TECHNICIAN, byUid: uid });
+    writeTransition(tx, db, {
+      ref,
+      booking,
+      to: input.to,
+      actor: BookingActor.TECHNICIAN,
+      byUid: uid,
+      extra: {
+        ...(input.to === BookingStatus.EN_ROUTE && input.location ? { enRouteLocation: { lat: input.location.lat, lng: input.location.lng } } : {}),
+        ...(input.to === BookingStatus.COMPLETED ? { completionNotes: input.notes ?? null } : {}),
+      },
+    });
     if (input.to === BookingStatus.COMPLETED) {
       tx.update(db.doc(paths.technician(uid)), { activeBookingId: null, updatedAt: FieldValue.serverTimestamp() });
     }

@@ -168,3 +168,42 @@ export function selectableCandidates<C extends { technicianId: string }>(
 export function formatDistance(km: number): string {
   return km < 1 ? "under 1 km away" : `${km} km away`;
 }
+
+// ── Technician job workflow (plan §12.3) ────────────────────────────────
+
+export const JOB_LIMITS = { maxPhotos: 10, notesMax: 500, maxPhotoBytes: 8 * 1024 * 1024 } as const;
+
+/** The technician's one primary action at each step. */
+export const TECH_STEP_LABELS: Partial<Record<BookingStatus, string>> = {
+  [BookingStatus.EN_ROUTE]: "I'm on my way",
+  [BookingStatus.ARRIVED]: "I've arrived",
+  [BookingStatus.IN_PROGRESS]: "Start work",
+  [BookingStatus.COMPLETED]: "Finish job",
+};
+
+/** The next physical step for the assigned technician, if any (never CANCELLED or DISPUTED). */
+export function nextTechnicianStep(status: BookingStatus): BookingStatus | null {
+  const order: BookingStatus[] = [BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE, BookingStatus.ARRIVED, BookingStatus.IN_PROGRESS, BookingStatus.COMPLETED];
+  const i = order.indexOf(status);
+  return i >= 0 && i < order.length - 1 ? order[i + 1]! : null;
+}
+
+/** Before photos once on site; after photos once work has started. */
+export function canAddJobPhoto(status: BookingStatus, kind: "BEFORE" | "AFTER"): boolean {
+  if (kind === "BEFORE") return status === BookingStatus.ARRIVED || status === BookingStatus.IN_PROGRESS;
+  return status === BookingStatus.IN_PROGRESS || status === BookingStatus.COMPLETED;
+}
+
+export type JobBucket = "offer" | "active" | "upcoming" | "done";
+
+/** Where a booking belongs in the technician's Jobs tab (null: not theirs any more). */
+export function jobBucket(
+  b: { status: BookingStatus; technicianId: string | null; offeredTechnicianId: string | null; preferredTime: PreferredTime },
+  uid: string,
+): JobBucket | null {
+  if (b.status === BookingStatus.OFFERED && b.offeredTechnicianId === uid) return "offer";
+  if (b.technicianId !== uid) return null;
+  if (b.status === BookingStatus.ACCEPTED && b.preferredTime === PreferredTime.SCHEDULED) return "upcoming";
+  if (ACTIVE_JOB_STATUSES.includes(b.status)) return "active";
+  return "done";
+}

@@ -103,6 +103,14 @@ Phone (customer / technician)                         Admin
 - **Back to matching.** A decline, an expired offer or an admin reassignment returns the booking to MATCHING; the technician is excluded from it, and if nobody selectable is left a new search runs. The matching deadline is extended, never shortened.
 - **Expiry sweep (fixes D-12).** `schedules-sweepBookings` runs every minute: expired offers go back to matching (SYSTEM), bookings still unmatched after `matchingExpiresAt` (the matching window, or the scheduled time) are cancelled by SYSTEM with a reason, and bookings without candidates are searched again. The state machine now lets SYSTEM cancel REQUESTED/MATCHING bookings — the only change to the ported table. The emulator doesn't run schedules; integration tests call the sweep directly.
 
+## Technician mobile workflow (Stage 9)
+
+- **Jobs tab** (`app/(tabs)/jobs.tsx`): new requests with a live countdown to `offerExpiresAt`, active, upcoming (scheduled) and done — the user's participant bookings filtered to jobs where they are the offered or assigned technician (`jobBucket` in shared). Home shows the current job and new requests.
+- **Job screen** (`app/job/[id].tsx`, presentational `JobView`): accept/decline (optional reason) while the offer is live; then **one large primary button** for the next step (`nextTechnicianStep`): on my way → arrived → start work (disabled until the customer accepts a price) → finish job (optional notes). Every success shows only after the server confirms.
+- **Customer contact** (phone, directions, GhanaPost GPS) is subscribed only once the job is accepted (rules deny it before); "Call customer" uses `tel:`, "Navigate" opens Google Maps (`google.navigation:q=lat,lng`, falling back to the maps website) — no in-app map SDK.
+- **Location** is captured once at "on my way" (`expo-location`, foreground, last known fix if recent) and stored as `enRouteLocation`; refusing permission never blocks the step. No background tracking.
+- **Job photos**: before photos from ARRIVED, after photos from IN_PROGRESS (`canAddJobPhoto`). The app compresses (≤1600 px JPEG), uploads to `bookings/{id}/{BEFORE|AFTER}/` — Storage rules: only the assigned technician, only in those statuses, create-only, image ≤ 8 MB; participants and admins can read — then `bookings-addJobPhoto` checks the file exists, is an image within the limit and is in that booking's folder, and records `bookings/{id}/media/{hash(path)}` (idempotent, at most 10 per job). Customers and admins see the photos and completion notes on the web booking pages.
+
 ## Cloud Functions build
 
 `firebase.json` points Functions at `apps/functions/dist`, produced by `apps/functions/scripts/build.mjs`: an esbuild bundle (inlining `@serviceflow/*` and zod) plus a generated `package.json` listing only `firebase-admin` and `firebase-functions`. This avoids `workspace:*` dependencies breaking the cloud `npm install`. `src/lib/global-options.ts` must stay the first import in `src/index.ts` so region and instance limits apply to every function.
@@ -117,6 +125,7 @@ Phone (customer / technician)                         Admin
 ## Stage log
 
 - **Stage 2 — Foundation**: monorepo, shared domain packages, Firebase config (deny-by-default rules, indexes), Functions skeleton with health checks and seed, web and mobile shells reading live services.
+- **Stage 9 — Technician mobile workflow**: Jobs tab, job screen with countdown and one primary action, quote, call/navigate, one-time location, before/after photos (Storage rules + callable), completion notes, web display of the job record.
 - **Stage 8 — Matching**: matching on create, customer choice among stored candidates, re-search, offer and matching expiry sweep, candidate pickers on web and mobile.
 - **Stage 7 — Bookings**: server-only booking state machine with history and idempotency receipts, create/cancel/offer response/job steps/quote/confirm callables, admin reassign and price override, booking rules, customer booking pages (web + mobile) and admin bookings.
 - **Stage 6 — Technician onboarding and verification**: register/services/verification/review callables, Storage rules for private ID documents, technician rules, web provider + admin review pages, mobile onboarding with photo capture and compression.
