@@ -166,6 +166,6 @@ describe("ServiceDetailView (public)", () => {
     );
     expect(screen.getByRole("heading", { name: "Plumbing" })).toBeInTheDocument();
     expect(screen.getByText("GH₵100.00 – GH₵400.00")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Request plumbing" })).toHaveAttribute("href", "/app/request");
+    expect(screen.getByRole("link", { name: "Request plumbing" })).toHaveAttribute("href", "/app/request?service=plumbing");
   });
 });

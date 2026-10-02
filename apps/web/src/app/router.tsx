@@ -19,6 +19,13 @@ const RequireCustomerProfile = lazyNamed(loadProfile, "RequireCustomerProfile");
 const WelcomePage = lazyNamed(() => import("../pages/customer/WelcomePage"), "WelcomePage");
 const CustomerHome = lazyNamed(() => import("../pages/customer/CustomerHome"), "CustomerHome");
 const ProfilePage = lazyNamed(() => import("../pages/customer/ProfilePage"), "ProfilePage");
+const loadBookings = () => import("../pages/customer/BookingPages");
+const RequestServicePage = lazyNamed(loadBookings, "RequestServicePage");
+const BookingsPage = lazyNamed(loadBookings, "BookingsPage");
+const BookingDetailPage = lazyNamed(loadBookings, "BookingDetailPage");
+const loadAdminBookings = () => import("../pages/admin/AdminBookingPages");
+const AdminBookingsPage = lazyNamed(loadAdminBookings, "AdminBookingsPage");
+const AdminBookingDetailPage = lazyNamed(loadAdminBookings, "AdminBookingDetailPage");
 const AdminServicesPage = lazyNamed(() => import("../pages/admin/AdminServicesPage"), "AdminServicesPage");
 const loadAdminTech = () => import("../pages/admin/AdminTechnicianPages");
 const AdminVerificationPage = lazyNamed(loadAdminTech, "AdminVerificationPage");
@@ -129,8 +136,9 @@ export const routes = [
         children: [
           { index: true, element: withSuspense(<CustomerHome />) },
           { path: "profile", element: withSuspense(<ProfilePage />) },
-          { path: "request", element: <PlaceholderPage title="Request service" stage="Bookings" /> },
-          { path: "bookings", element: <PlaceholderPage title="Bookings" stage="Bookings" /> },
+          { path: "request", element: withSuspense(<RequestServicePage />) },
+          { path: "bookings", element: withSuspense(<BookingsPage />) },
+          { path: "bookings/:id", element: withSuspense(<BookingDetailPage />) },
         ],
       },
     ],
@@ -177,8 +185,10 @@ export const routes = [
       { path: "services", element: withSuspense(<AdminServicesPage />) },
       { path: "verification", element: withSuspense(<AdminVerificationPage />) },
       { path: "technicians", element: withSuspense(<AdminTechniciansPage />) },
+      { path: "bookings", element: withSuspense(<AdminBookingsPage />) },
+      { path: "bookings/:id", element: withSuspense(<AdminBookingDetailPage />) },
       ...areaRoutes(ADMIN_NAV, "/admin", "Admin", "Web dashboards").filter(
-        (r) => !("path" in r) || !["services", "verification", "technicians"].includes(r.path ?? ""),
+        (r) => !("path" in r) || !["services", "verification", "technicians", "bookings"].includes(r.path ?? ""),
       ),
     ],
   },

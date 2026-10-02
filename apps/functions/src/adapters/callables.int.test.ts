@@ -175,3 +175,42 @@ describe("technician callables over HTTP", () => {
     );
   });
 });
+
+describe("booking callables over HTTP", () => {
+  const createBooking = fn<Record<string, unknown>, { ok: true; id: string }>(callables.createBooking.name);
+  const cancelBooking = fn<Record<string, unknown>, { ok: true; id: string }>(callables.cancelBooking.name);
+  const advance = fn<Record<string, unknown>, { ok: true }>(callables.advanceJob.name);
+  const setPrice = fn<Record<string, unknown>, { ok: true }>(callables.setBookingPrice.name);
+
+  async function customerWithAddress(uid: string) {
+    await admin.auth.createUser({ uid });
+    await admin.db.doc(`users/${uid}`).set({ status: UserStatus.ACTIVE, phone: "+233241234567", capabilities: { tech: false, admin: false }, displayName: "Ama", createdAt: FieldValue.serverTimestamp() });
+    await admin.db.doc("services/plumbing").set({ name: "Plumbing", slug: "plumbing", description: "", iconPath: null, priceRange: { minMinor: 10000, maxMinor: 30000 }, isActive: true, sortOrder: 1 });
+    await admin.db.doc(`customers/${uid}/addresses/home`).set({
+      label: "Home", directions: "Opposite Shell", ghanaPostGps: null, areaId: "osu", areaName: "Osu",
+      location: { lat: 5.55, lng: -0.17 }, notes: null, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+    });
+    await signInWithCustomToken(getAuth(app), await admin.auth.createCustomToken(uid));
+  }
+
+  it("requires sign-in, then creates and cancels a booking with null optional fields", async () => {
+    const input = { requestId: "req_http_booking_1", serviceId: "plumbing", problemDescription: "Kitchen sink is leaking", addressId: "home", location: undefined, preferredTime: "ASAP", scheduledAt: undefined };
+    expect((await failure(createBooking(input))).code).toBe("functions/unauthenticated");
+
+    await customerWithAddress("cust-book-1");
+    const { data } = await createBooking(input); // undefined fields arrive as null
+    expect(data.id).toMatch(/^bk_/);
+    expect((await admin.db.doc(`bookings/${data.id}`).get()).get("status")).toBe("REQUESTED");
+
+    await cancelBooking({ requestId: "req_http_cancel_1", bookingId: data.id, reason: "Fixed it myself" });
+    expect((await admin.db.doc(`bookings/${data.id}`).get()).get("status")).toBe("CANCELLED");
+  });
+
+  it("customers can't use technician or admin booking tools", async () => {
+    await customerWithAddress("cust-book-2");
+    expect((await failure(advance({ requestId: "req_http_adv_1", bookingId: "b1", to: "EN_ROUTE" }))).code).toBe("functions/permission-denied");
+    expect((await failure(setPrice({ requestId: "req_http_price_1", bookingId: "b1", amountMinor: 100, reason: "Test" }))).code).toBe(
+      "functions/permission-denied",
+    );
+  });
+});

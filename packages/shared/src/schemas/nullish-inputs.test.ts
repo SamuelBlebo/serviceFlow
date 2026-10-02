@@ -44,7 +44,7 @@ describe("optional callable fields accept null as 'absent'", () => {
       scheduledAt: null,
     });
     expect(parsed.scheduledAt).toBeUndefined();
-    expect(parsed.location.address).toBeUndefined();
+    expect(parsed.location?.address).toBeUndefined();
   });
 
   it("other callables with optional fields", () => {

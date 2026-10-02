@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Status | **Stage 6 (Technician onboarding and verification) complete (2026-10-01). Stage 7 not started.** Stage records: §20.5 (Stage 2), §21 (Stage 3), §22 (Stage 4), §23 (Stage 5), §24 (Stage 6). |
+| Status | **Stage 7 (Bookings) complete (2026-10-02). Stage 8 (Matching) not started.** Stage records: §20.5 (Stage 2), §21 (Stage 3), §22 (Stage 4), §23 (Stage 5), §24 (Stage 6), §25 (Stage 7). |
 | Date | 2026-09-30 |
 | Audited commit | `effae03` (main): "Initial commit: Home Service backend + WhatsApp booking slice" |
 | Scope | Audit and blueprint only. No code, data, Firebase or deployment changes were made |
@@ -1542,7 +1542,7 @@ src/
 | D6 | App identifiers and domain | e.g. `com.serviceflow.app` / `serviceflow.com.gh`, or a placeholder | Before Stage 2 step 8 |
 | D2 | Phone OTP mechanism | Custom OTP → custom token (SMS or WhatsApp delivery) | Auth stage |
 | D3 | Firebase region | Measure; `europe-west1` is the likely choice | Before a real project is created |
-| D4 | Final price authority | Technician quotes within the service range, customer confirms, admin can override | Bookings stage |
+| D4 | Final price authority | **Decided (2026-10-02): technician quotes within the service range, customer accepts before work starts, admin can override (audited).** Built in Stage 7 | Bookings stage |
 | D5 | Cash jobs and commission | Post gross EARNING_CREDIT + COMMISSION_DEBIT; for cash, only the COMMISSION_DEBIT (receivable), netted against future earnings, with withdrawals blocked while negative | Payments stage |
 | D7 | Does any production data or users exist on the legacy system? | Assumed **no**, so there is no data migration | Before the Auth stage |
 
@@ -1713,3 +1713,49 @@ Stage 5 was committed as `900c04f` on `stage-5-services`. Stage 6 is on `stage-6
 - Technician profile photo on mobile (web supports it; mobile edits arrive with the technician mobile workflow).
 - Push notifications on review decisions (Notifications stage).
 - Removing the legacy technicians module: deferred, because legacy bookings, matching and the WhatsApp bot read technicians through Prisma.
+
+## 25. Stage 7: Bookings (2026-10-02)
+
+Stage 6 was committed as `cc8bc81` on `stage-6-technicians`. Stage 7 is on `stage-7-bookings`.
+
+Decisions taken at the start of the stage: **D4** — the technician quotes within the service range, the customer accepts, work can't start until then, and an admin can override (audited). **Scope** — the booking lifecycle now; matching (candidates, offers, expiry) in Stage 8.
+
+### Scope delivered
+
+| Area | Delivered |
+| --- | --- |
+| Shared | `bookings/booking.ts`: quote rules (`QuoteStatus`, `canSubmitQuote`, `canRespondToQuote`, `canAdminSetPrice`, `isQuoteWithinRange`), `ACTIVE_JOB_STATUSES`, `CONTACT_VISIBLE_STATUSES`, `TIMELINE_FIELD`, `scheduleProblem` (1 hour to 30 days ahead), customer status labels. Booking document gains quote status/note/rejection reason, `priceSetBy` and `timeline`; new `bookingContactDoc`. Callable inputs: create (saved address *or* location pin, optional WEB/MOBILE channel), respond to offer, advance, submit quote, respond to quote, confirm, cancel, admin reassign, admin set price |
+| Callables | `bookings-create`, `-respondToOffer`, `-advance`, `-submitQuote`, `-respondToQuote`, `-confirmCompletion`, `-cancel`; `admin-reassignBooking`, `admin-setBookingPrice` (recent sign-in). All check an active account; ownership and actor come from the booking, never the client |
+| Domain | Single status writer with history and stage timestamps; deterministic booking ids; per-request receipts for safe retries; max 3 open bookings per customer; estimate copied from the service; technician must be VERIFIED and free to accept; counters and `activeBookingId` in the same transaction; commission snapshot at confirmation; admin actions audited |
+| Rules + indexes | Bookings, history: participants and admins read, no client writes; private contact: customer, admins, assigned technician from ACCEPTED to COMPLETED; receipts closed. Indexes for `participantIds` + `createdAt` and `customerId` + `status` |
+| Web | `/app/request` (service preselected from `/services/:slug`, saved address, ASAP/today/tomorrow/scheduled), `/app/bookings` (open/past), `/app/bookings/:id` (live status, timeline, accept/decline price, confirm, cancel); dashboard lists open bookings; `/admin/bookings` (status filter) and `/admin/bookings/:id` (contact, quote, commission, history, set price, reassign, cancel). All lazy; first-load chunk 69 KB gzipped |
+| Mobile | Home "Request a service" / "Your bookings" and open bookings; `app/bookings` list, request (ASAP/today/tomorrow) and detail with accept/decline price, confirm and cancel. Technician job screens come in the Technician mobile workflow stage |
+
+### Verified results
+
+| Check | Result |
+| --- | --- |
+| `pnpm install --frozen-lockfile` | OK (no new dependencies) |
+| `pnpm typecheck` | 8/8 packages |
+| `pnpm test` | 432 pass: shared 185, firebase 13, functions 42, web 108, mobile 39, legacy API 45 (unchanged) |
+| `pnpm test:rules` | 63 pass (6 new booking rules tests) |
+| `pnpm test:integration` | 74 pass (19 booking domain tests + 2 over HTTP) |
+| `pnpm build` | OK; web first-load chunk 69 KB gzipped, booking pages 3.5 KB and admin bookings 2.9 KB gzipped (lazy) |
+| Mobile | `expo install --check` up to date; `expo export` Android bundle OK |
+| Browser end to end | Bookings 22/22 (request from a service page → offer stand-in → technician accepts, travels and quotes through the real callables → customer accepts the price live → completion → confirmation with locked price and 15% commission → second booking cancelled → admin views), technicians 15/15, profiles 14/14, services 12/12, auth 14/14 |
+
+### Found and fixed during the stage
+
+- **Open-booking limit could be bypassed** by a customer with many old bookings: the first version counted open bookings among the newest 50 fetched. It now queries open statuses directly.
+- **History read like live prompts** ("Work completed — please confirm" on a finished job). The timeline now uses past-tense event labels.
+- **Every booking was recorded as WEB.** Clients may now state WEB or MOBILE (informational only; WhatsApp and admin sources are server-set).
+- Legacy defects fixed in the replacement: **D-1**, **D-2**, **D-8**.
+- The profile e2e check "changes persist after reload" failed once and passed on every rerun — a timing-sensitive check, noted for hardening.
+
+### Not in this stage
+
+- Matching: REQUESTED → MATCHING → OFFERED, candidate snapshot, `bookings-selectTechnician` (D-6), offer and matching expiry (D-12) — Stage 8. Tests stand in for it by setting OFFERED directly.
+- Technician job screens (accept/decline, next step, quote) on mobile and web — Technician mobile workflow stage. The callables exist and are tested.
+- Payment invoice at confirmation, ratings, disputes (`DISPUTED` transitions) — their stages.
+- Scheduling a specific time on mobile (no date picker yet) and adding addresses on mobile.
+- Removing the legacy bookings module: deferred, because the legacy WhatsApp bot still books through it.

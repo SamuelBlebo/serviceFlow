@@ -14,6 +14,7 @@ export * from "./catalogue";
 export * from "./technician";
 
 export * from "./bookings/state-machine";
+export * from "./bookings/booking";
 
 export * from "./matching/types";
 export * from "./matching/score";

@@ -4,6 +4,7 @@ import { availabilityWindow } from "./documents";
 import { SERVICE_LIMITS, slugify } from "../catalogue";
 import { PROFILE_LIMITS, normalizeGhanaPostGps } from "../profile";
 import { ReviewDecision, TECHNICIAN_LIMITS, hasOverlappingWindows, normalizeIdNumber } from "../technician";
+import { BOOKING_LIMITS } from "../bookings/booking";
 import { docId, ghanaPhone, latLng, minorAmount, optionalInput, personName, requestId } from "./primitives";
 
 /**
@@ -99,24 +100,44 @@ export type ReviewTechnicianInput = z.input<typeof reviewTechnicianInput>;
 
 // ── Bookings ─────────────────────────────────────────────────────────────
 
+const reason = z.string().trim().min(BOOKING_LIMITS.reasonMin, "Give a short reason").max(BOOKING_LIMITS.reasonMax);
+
+/**
+ * Request a job. Web and mobile send one of the customer's saved addresses
+ * (`addressId`; the server reads it, so directions and area are trusted);
+ * WhatsApp sends a shared location pin instead.
+ */
 export const createBookingInput = z
   .object({
     requestId,
     serviceId: docId,
-    problemDescription: z.string().trim().min(3).max(1000),
-    location: latLng.extend({
-      address: optionalInput(z.string().max(200)),
-      notes: optionalInput(z.string().max(300)),
-    }),
+    problemDescription: z
+      .string()
+      .trim()
+      .min(BOOKING_LIMITS.problemMin, "Describe the problem in a few words (at least 10 characters)")
+      .max(BOOKING_LIMITS.problemMax),
+    addressId: optionalInput(docId),
+    location: optionalInput(
+      latLng.extend({
+        address: optionalInput(z.string().max(200)),
+        notes: optionalInput(z.string().max(300)),
+      }),
+    ),
     preferredTime: z.enum(PreferredTime),
     /** ISO-8601; required when preferredTime is SCHEDULED (legacy rule). */
-    scheduledAt: optionalInput(z.string().datetime()),
+    scheduledAt: optionalInput(z.string().datetime({ offset: true })),
+    /** Which app sent it (informational only). WhatsApp and admin sources are set by the server. */
+    channel: optionalInput(z.enum(["WEB", "MOBILE"])),
   })
   .refine((v) => v.preferredTime !== PreferredTime.SCHEDULED || Boolean(v.scheduledAt), {
-    message: "scheduledAt is required when preferredTime is SCHEDULED",
+    message: "Choose a date and time",
     path: ["scheduledAt"],
+  })
+  .refine((v) => Boolean(v.addressId) !== Boolean(v.location), {
+    message: "Choose where the job is",
+    path: ["addressId"],
   });
-export type CreateBookingInput = z.infer<typeof createBookingInput>;
+export type CreateBookingInput = z.input<typeof createBookingInput>;
 
 export const selectTechnicianInput = z.object({ requestId, bookingId: docId, technicianId: docId });
 
@@ -124,8 +145,9 @@ export const respondToOfferInput = z.object({
   requestId,
   bookingId: docId,
   accept: z.boolean(),
-  reason: optionalInput(z.string().max(300)),
+  reason: optionalInput(z.string().trim().max(BOOKING_LIMITS.reasonMax)),
 });
+export type RespondToOfferInput = z.input<typeof respondToOfferInput>;
 
 /** The technician's physical job steps — the only statuses they may advance to directly. */
 export const TECHNICIAN_JOB_STEPS = [
@@ -141,12 +163,50 @@ export const advanceJobInput = z.object({
   to: z.enum(TECHNICIAN_JOB_STEPS),
   location: optionalInput(latLng),
 });
+export type AdvanceJobInput = z.input<typeof advanceJobInput>;
 
-export const submitQuoteInput = z.object({ requestId, bookingId: docId, amountMinor: minorAmount });
+/** Technician's price for the job, within the service's range (Decision D4). */
+export const submitQuoteInput = z.object({
+  requestId,
+  bookingId: docId,
+  amountMinor: minorAmount.refine((v) => v > 0, { message: "Enter the price" }),
+  note: optionalInput(z.string().trim().max(BOOKING_LIMITS.quoteNoteMax)),
+});
+export type SubmitQuoteInput = z.input<typeof submitQuoteInput>;
+
+/** Customer accepts or declines the quote; declining needs a reason the technician sees. */
+export const respondToQuoteInput = z
+  .object({
+    requestId,
+    bookingId: docId,
+    accept: z.boolean(),
+    reason: optionalInput(z.string().trim().max(BOOKING_LIMITS.reasonMax)),
+  })
+  .refine((v) => v.accept || (v.reason?.length ?? 0) >= BOOKING_LIMITS.reasonMin, {
+    message: "Tell the technician why (for example, too expensive)",
+    path: ["reason"],
+  });
+export type RespondToQuoteInput = z.input<typeof respondToQuoteInput>;
 
 export const confirmCompletionInput = z.object({ requestId, bookingId: docId });
+export type ConfirmCompletionInput = z.input<typeof confirmCompletionInput>;
 
-export const cancelBookingInput = z.object({ requestId, bookingId: docId, reason: z.string().trim().min(3).max(300) });
+/** Customer, assigned technician or admin; who may cancel depends on the status. */
+export const cancelBookingInput = z.object({ requestId, bookingId: docId, reason });
+export type CancelBookingInput = z.input<typeof cancelBookingInput>;
+
+/** Admin: take an offered job back from the technician and return it to matching. */
+export const reassignBookingInput = z.object({ requestId, bookingId: docId, reason });
+export type ReassignBookingInput = z.input<typeof reassignBookingInput>;
+
+/** Admin: set the agreed price (any amount), e.g. when the job is bigger than the range. */
+export const setBookingPriceInput = z.object({
+  requestId,
+  bookingId: docId,
+  amountMinor: minorAmount.refine((v) => v > 0, { message: "Enter the price" }),
+  reason,
+});
+export type SetBookingPriceInput = z.input<typeof setBookingPriceInput>;
 
 // ── Payments, wallet, ratings ────────────────────────────────────────────
 

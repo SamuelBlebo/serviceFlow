@@ -110,8 +110,8 @@ describe("deny by default", () => {
   });
 
   it("closed collections are unreadable and unwritable for every role", async () => {
+    // Bookings opened for participants and admins in Stage 7 (bookings.rules.test.ts).
     for (const db of [anon(), customer(), technician(), admin()]) {
-      await assertFails(getDoc(doc(db, "bookings/b1")));
       await assertFails(getDoc(doc(db, "wallets/tech1")));
       await assertFails(getDoc(doc(db, "adminActions/a1")));
       await assertFails(getDoc(doc(db, "someUnknownCollection/x")));
