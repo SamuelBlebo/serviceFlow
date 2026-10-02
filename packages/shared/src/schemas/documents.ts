@@ -265,6 +265,9 @@ export const bookingDoc = z.object({
   candidates: z.array(bookingCandidate).max(10),
   declinedTechnicianIds: z.array(docId),
   offerExpiresAt: timestampLike.nullable(),
+  /** When a booking still without a technician is cancelled by the system (D-12). */
+  matchingExpiresAt: timestampLike.nullable().optional(),
+  lastMatchedAt: timestampLike.nullable().optional(),
   source: z.enum(ChannelSource),
   cancellation: z
     .object({ byUid: docId.nullable(), actor: z.string(), reason: z.string(), at: timestampLike })

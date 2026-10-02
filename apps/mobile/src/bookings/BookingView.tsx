@@ -6,7 +6,9 @@ import {
   QuoteStatus,
   canActorTransition,
   formatMoney,
+  formatDistance,
   formatMoneyRange,
+  selectableCandidates,
 } from "@serviceflow/shared";
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -65,7 +67,54 @@ function Row({ label, value }: { label: string; value: string }) {
  * decline (Decision D4), confirmation and cancellation. Buttons appear only
  * when the shared rules allow them; the server decides again.
  */
-export function BookingView({ booking, history, store }: { booking: Booking; history: HistoryEntry[]; store: Pick<BookingStore, "respondToQuote" | "confirm" | "cancel"> }) {
+type ViewStore = Pick<BookingStore, "respondToQuote" | "confirm" | "cancel" | "selectTechnician" | "rematch">;
+
+/** Recommended technicians to choose from, or the pending offer (plan §5.3). */
+function Matching({ booking, store }: { booking: Booking; store: ViewStore }) {
+  const action = useAction();
+  if (booking.status === BookingStatus.OFFERED) {
+    const offered = booking.candidates.find((c) => c.technicianId === booking.offeredTechnicianId);
+    return (
+      <View style={[fieldStyles.card, styles.highlight]} testID="offer-card">
+        <Text style={styles.title}>Waiting for {offered?.displayName ?? "the technician"} to accept</Text>
+        <Text style={fieldStyles.muted}>If they don't answer in a few minutes, you can choose someone else.</Text>
+      </View>
+    );
+  }
+  if (booking.status !== BookingStatus.MATCHING && booking.status !== BookingStatus.REQUESTED) return null;
+  const choices = selectableCandidates(booking);
+  return (
+    <View style={fieldStyles.card} testID="matching-card">
+      {choices.length === 0 ? (
+        <>
+          <Text style={styles.title}>No technician is available right now</Text>
+          <Text style={fieldStyles.muted}>We'll keep looking. You can also search again now.</Text>
+          <SecondaryButton label="Search again" disabled={action.busy} onPress={() => void action.run((requestId) => store.rematch({ requestId, bookingId: booking.id }))} />
+        </>
+      ) : (
+        <>
+          <Text style={styles.title}>Choose your technician</Text>
+          {choices.map((c) => (
+            <View key={c.technicianId} style={styles.candidate}>
+              <Text style={fieldStyles.body}>{c.displayName}</Text>
+              <Text style={fieldStyles.muted}>
+                {c.averageRating > 0 ? `★ ${c.averageRating.toFixed(1)}` : "New on ServiceFlow"} · {c.completedJobs} jobs · {formatDistance(c.distanceKm)}
+              </Text>
+              <SecondaryButton
+                label={`Choose ${c.displayName}`}
+                disabled={action.busy}
+                onPress={() => void action.run((requestId) => store.selectTechnician({ requestId, bookingId: booking.id, technicianId: c.technicianId }))}
+              />
+            </View>
+          ))}
+        </>
+      )}
+      <ErrorText message={action.error} />
+    </View>
+  );
+}
+
+export function BookingView({ booking, history, store }: { booking: Booking; history: HistoryEntry[]; store: ViewStore }) {
   const quote = useAction();
   const confirm = useAction();
   const cancel = useAction();
@@ -76,14 +125,14 @@ export function BookingView({ booking, history, store }: { booking: Booking; his
   const p = booking.pricing;
   const proposed = p.quoteStatus === QuoteStatus.PROPOSED && p.quotedMinor !== null;
   const canCancel = canActorTransition(booking.status, BookingStatus.CANCELLED, BookingActor.CUSTOMER);
-  const searching = booking.status === BookingStatus.REQUESTED || booking.status === BookingStatus.MATCHING;
 
   return (
     <View style={{ gap: space[4] }}>
       <View style={styles.status} testID="booking-status">
         <Text style={styles.statusText}>{BOOKING_STATUS_LABELS[booking.status]}</Text>
-        {searching ? <Text style={fieldStyles.muted}>We'll show your technician here as soon as one accepts.</Text> : null}
       </View>
+
+      <Matching booking={booking} store={store} />
 
       {proposed ? (
         <View style={[fieldStyles.card, styles.highlight]} testID="quote-card">
@@ -172,5 +221,6 @@ const styles = StyleSheet.create({
   statusText: { fontSize: fontSize.lg, fontWeight: "600", color: colors.brandDark },
   highlight: { borderColor: colors.brand },
   title: { fontSize: fontSize.base, fontWeight: "600", color: colors.text },
+  candidate: { gap: space[1], paddingVertical: space[2], borderTopWidth: 1, borderTopColor: colors.border },
   label: { fontSize: fontSize.xs, color: colors.textSubtle, textTransform: "uppercase" },
 });

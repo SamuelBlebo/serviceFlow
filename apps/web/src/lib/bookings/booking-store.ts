@@ -8,6 +8,8 @@ import {
   type ConfirmCompletionInput,
   type CreateBookingInput,
   type ReassignBookingInput,
+  type RematchBookingInput,
+  type SelectTechnicianInput,
   type RespondToQuoteInput,
   type SetBookingPriceInput,
   bookingContactDoc,
@@ -76,6 +78,8 @@ export function watchAdminBookings(status: BookingStatus | "ALL", onData: (b: Bo
 
 export const bookingStore = {
   create: (input: CreateBookingInput) => call("createBooking", input),
+  selectTechnician: (input: SelectTechnicianInput) => call("selectTechnician", input),
+  rematch: (input: RematchBookingInput) => call("rematchBooking", input),
   cancel: (input: CancelBookingInput) => call("cancelBooking", input),
   respondToQuote: (input: RespondToQuoteInput) => call("respondToQuote", input),
   confirm: (input: ConfirmCompletionInput) => call("confirmCompletion", input),

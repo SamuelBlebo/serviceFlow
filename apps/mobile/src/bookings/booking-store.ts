@@ -7,7 +7,9 @@ import {
   type ConfirmCompletionInput,
   type CreateBookingInput,
   type CustomerAddressDoc,
+  type RematchBookingInput,
   type RespondToQuoteInput,
+  type SelectTechnicianInput,
   bookingDoc,
   bookingStatusHistoryDoc,
   customerAddressDoc,
@@ -60,6 +62,8 @@ export function watchAddresses(uid: string, onData: (a: Address[]) => void, onEr
 
 export const bookingStore = {
   create: (input: CreateBookingInput) => call("createBooking", input),
+  selectTechnician: (input: SelectTechnicianInput) => call("selectTechnician", input),
+  rematch: (input: RematchBookingInput) => call("rematchBooking", input),
   cancel: (input: CancelBookingInput) => call("cancelBooking", input),
   respondToQuote: (input: RespondToQuoteInput) => call("respondToQuote", input),
   confirm: (input: ConfirmCompletionInput) => call("confirmCompletion", input),

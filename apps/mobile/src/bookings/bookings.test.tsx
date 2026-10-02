@@ -61,8 +61,10 @@ function booking(overrides: Partial<Booking> = {}): Booking {
 const assigned = { technicianId: "t1", participantIds: ["u1", "t1"], technicianSnapshot: { displayName: "Kojo Asante", photoPath: null } };
 const history: HistoryEntry[] = [{ id: "h1", from: null, to: "REQUESTED", actor: "CUSTOMER", byUid: "u1", note: null, createdAt: ts }];
 
-function fakeStore(): Pick<BookingStore, "respondToQuote" | "confirm" | "cancel"> {
+function fakeStore(): Pick<BookingStore, "respondToQuote" | "confirm" | "cancel" | "selectTechnician" | "rematch"> {
   return {
+    selectTechnician: jest.fn(async () => ({ ok: true as const, id: "bk_1" })),
+    rematch: jest.fn(async () => ({ ok: true as const, id: "bk_1" })),
     respondToQuote: jest.fn(async () => ({ ok: true as const, id: "bk_1" })),
     confirm: jest.fn(async () => ({ ok: true as const, id: "bk_1" })),
     cancel: jest.fn(async () => ({ ok: true as const, id: "bk_1" })),
@@ -100,10 +102,28 @@ describe("RequestForm (mobile)", () => {
 });
 
 describe("BookingView (mobile)", () => {
-  it("while searching: honest status and a cancel that needs a reason", async () => {
+  it("lets the customer choose a recommended technician, hiding those who declined", async () => {
     const store = fakeStore();
-    render(<BookingView booking={booking()} history={history} store={store} />);
+    const candidate = (technicianId: string, displayName: string) => ({ technicianId, displayName, averageRating: 4.6, completedJobs: 8, distanceKm: 2.1, score: 0.7 });
+    render(
+      <BookingView
+        booking={booking({ status: "MATCHING", candidates: [candidate("t1", "Kwame"), candidate("t2", "Ama")], declinedTechnicianIds: ["t1"] })}
+        history={history}
+        store={store}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Choose Kwame" })).toBeNull();
+    expect(screen.getByText("★ 4.6 · 8 jobs · 2.1 km away")).toBeTruthy();
+    fireEvent.press(screen.getByRole("button", { name: "Choose Ama" }));
+    await waitFor(() => expect(store.selectTechnician).toHaveBeenCalledWith(expect.objectContaining({ technicianId: "t2" })));
+  });
+
+  it("with nobody available: search again, and a cancel that needs a reason", async () => {
+    const store = fakeStore();
+    render(<BookingView booking={booking({ status: "MATCHING" })} history={history} store={store} />);
     expect(screen.getAllByText("Finding a technician").length).toBeGreaterThan(0);
+    fireEvent.press(screen.getByRole("button", { name: "Search again" }));
+    await waitFor(() => expect(store.rematch).toHaveBeenCalled());
     expect(screen.getByText("GH₵100.00 – GH₵400.00 (estimate)")).toBeTruthy();
     fireEvent.press(screen.getByRole("button", { name: "Cancel booking" }));
     fireEvent.press(screen.getByRole("button", { name: "Confirm cancellation" }));

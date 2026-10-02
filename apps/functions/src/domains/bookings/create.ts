@@ -11,6 +11,7 @@ import {
   ValidationError,
   customerAddressDoc,
   isOpenBooking,
+  matchingDeadlineMs,
   platformSettingsDoc,
   scheduleProblem,
   serviceDoc,
@@ -29,7 +30,7 @@ const OPEN_STATUSES = Object.values(BookingStatus).filter(isOpenBooking);
  * phone and directions go to the private contact document, which the
  * technician can read only after accepting. Idempotent per request.
  *
- * Matching (REQUESTED → MATCHING → OFFERED) is added in the Matching stage.
+ * The adapter runs matching right after (REQUESTED → MATCHING, candidates).
  */
 export async function createBooking(
   deps: BookingDeps,
@@ -116,6 +117,10 @@ export async function createBooking(
       candidates: [],
       declinedTechnicianIds: [],
       offerExpiresAt: null,
+      matchingExpiresAt: Timestamp.fromMillis(
+        matchingDeadlineMs({ preferredTime: input.preferredTime, scheduledAtMs, currentDeadlineMs: null }, nowMs, settings.matchingExpiryMinutes),
+      ),
+      lastMatchedAt: null,
       source,
       cancellation: null,
       createdAt: FieldValue.serverTimestamp(),

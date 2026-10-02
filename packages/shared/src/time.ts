@@ -65,7 +65,9 @@ export function zonedWallTimeToDate(
 
 /**
  * When a booking is needed, for availability filtering. Ported from the
- * legacy bookings service, with the time zone made explicit.
+ * legacy bookings service, with the time zone made explicit. TOMORROW uses
+ * the same time tomorrow (legacy used now, so a "tomorrow" job was matched
+ * against today's working hours).
  */
 export function resolveNeededAt(
   preferredTime: PreferredTime,
@@ -73,7 +75,12 @@ export function resolveNeededAt(
   now: Date,
   timeZone: string = DEFAULT_TIMEZONE,
 ): { dayOfWeek: number; time: string } {
-  const reference = preferredTime === PreferredTime.SCHEDULED && scheduledAt ? scheduledAt : now;
+  const reference =
+    preferredTime === PreferredTime.SCHEDULED && scheduledAt
+      ? scheduledAt
+      : preferredTime === PreferredTime.TOMORROW
+        ? new Date(now.getTime() + 86_400_000)
+        : now;
   return zonedDayAndTime(reference, timeZone);
 }
 

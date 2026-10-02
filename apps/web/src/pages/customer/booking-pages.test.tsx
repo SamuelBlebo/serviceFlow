@@ -129,10 +129,12 @@ describe("BookingDetailPage", () => {
     return store;
   };
 
-  it("while searching: honest status, history, and the customer can cancel with a reason", async () => {
-    const store = renderDetail(booking());
+  it("with nobody available: says so, can search again, and the customer can cancel with a reason", async () => {
+    const store = renderDetail(booking({ status: "MATCHING" }));
     expect(screen.getAllByText("Finding a technician").length).toBeGreaterThan(0);
-    expect(screen.getByText(/as soon as one accepts/)).toBeInTheDocument();
+    expect(screen.getByText("No technician is available right now")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Search again" }));
+    expect(store.rematch).toHaveBeenCalledWith(expect.objectContaining({ bookingId: "bk_1" }));
     expect(screen.getByText(/GH₵100.00 – GH₵300.00 \(estimate\)/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Cancel booking" }));
     await userEvent.click(screen.getByRole("button", { name: "Confirm cancellation" }));
@@ -140,6 +142,34 @@ describe("BookingDetailPage", () => {
     await userEvent.type(screen.getByLabelText("Reason for cancelling"), "Fixed it myself");
     await userEvent.click(screen.getByRole("button", { name: "Confirm cancellation" }));
     expect(store.cancel).toHaveBeenCalledWith(expect.objectContaining({ bookingId: "bk_1", reason: "Fixed it myself" }));
+  });
+
+  it("lists recommended technicians (hiding ones who declined) and offers the job to the chosen one", async () => {
+    const candidate = (technicianId: string, displayName: string, averageRating = 4.8) => ({ technicianId, displayName, averageRating, completedJobs: 12, distanceKm: 1.4, score: 0.8 });
+    const b = booking({
+      status: "MATCHING",
+      candidates: [candidate("t1", "Kwame Owusu"), candidate("t2", "Ama Serwaa", 0), candidate("t3", "Yaw Mensah")],
+      declinedTechnicianIds: ["t3"],
+    });
+    const store = renderDetail(b);
+    expect(screen.getByTestId("candidate-t1")).toHaveTextContent("★ 4.8 · 12 jobs done · 1.4 km away");
+    expect(screen.getByTestId("candidate-t2")).toHaveTextContent("New on ServiceFlow");
+    expect(screen.queryByTestId("candidate-t3")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Choose Ama Serwaa" }));
+    expect(store.selectTechnician).toHaveBeenCalledWith(expect.objectContaining({ bookingId: "bk_1", technicianId: "t2" }));
+  });
+
+  it("while an offer is out, shows who it went to and roughly how long they have", () => {
+    const b = booking({
+      status: "OFFERED",
+      offeredTechnicianId: "t1",
+      participantIds: ["u1", "t1"],
+      candidates: [{ technicianId: "t1", displayName: "Kwame Owusu", averageRating: 4.8, completedJobs: 12, distanceKm: 1.4, score: 0.8 }],
+      offerExpiresAt: { toMillis: () => Date.now() + 7.5 * 60_000 },
+    });
+    renderDetail(b);
+    expect(screen.getByTestId("offer-panel")).toHaveTextContent("Waiting for Kwame Owusu to accept");
+    expect(screen.getByTestId("offer-panel")).toHaveTextContent("about 8 minutes");
   });
 
   it("accepting the technician's price", async () => {

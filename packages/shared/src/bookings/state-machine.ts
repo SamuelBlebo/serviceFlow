@@ -11,14 +11,16 @@ import { ForbiddenError, InvalidStateTransitionError } from "../errors";
  * only to decide which buttons to show; that is never enforcement.
  */
 const TRANSITIONS: Record<BookingStatus, Partial<Record<BookingStatus, BookingActor[]>>> = {
+  // SYSTEM may cancel a booking nobody could be matched to in time (fixes
+  // legacy D-12: bookings stayed in MATCHING forever).
   [BookingStatus.REQUESTED]: {
     [BookingStatus.MATCHING]: [BookingActor.SYSTEM],
-    [BookingStatus.CANCELLED]: [BookingActor.CUSTOMER, BookingActor.ADMIN],
+    [BookingStatus.CANCELLED]: [BookingActor.CUSTOMER, BookingActor.ADMIN, BookingActor.SYSTEM],
   },
   [BookingStatus.MATCHING]: {
     // Customer selecting a recommended technician offers the job to them.
     [BookingStatus.OFFERED]: [BookingActor.SYSTEM, BookingActor.CUSTOMER],
-    [BookingStatus.CANCELLED]: [BookingActor.CUSTOMER, BookingActor.ADMIN],
+    [BookingStatus.CANCELLED]: [BookingActor.CUSTOMER, BookingActor.ADMIN, BookingActor.SYSTEM],
   },
   [BookingStatus.OFFERED]: {
     [BookingStatus.ACCEPTED]: [BookingActor.TECHNICIAN],

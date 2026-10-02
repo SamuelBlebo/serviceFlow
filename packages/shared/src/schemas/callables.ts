@@ -139,7 +139,13 @@ export const createBookingInput = z
   });
 export type CreateBookingInput = z.input<typeof createBookingInput>;
 
+/** Customer offers the job to one of the booking's recommended technicians. */
 export const selectTechnicianInput = z.object({ requestId, bookingId: docId, technicianId: docId });
+export type SelectTechnicianInput = z.input<typeof selectTechnicianInput>;
+
+/** Customer asks for a fresh search (e.g. nobody was available, or every candidate declined). */
+export const rematchBookingInput = z.object({ requestId, bookingId: docId });
+export type RematchBookingInput = z.input<typeof rematchBookingInput>;
 
 export const respondToOfferInput = z.object({
   requestId,

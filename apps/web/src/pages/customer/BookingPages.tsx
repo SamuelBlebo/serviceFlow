@@ -1,7 +1,7 @@
 import { BookingActor, BookingStatus, isOpenBooking } from "@serviceflow/shared";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
-import { CancelPanel, ConfirmPanel, Detail, QuotePanel, StatusBadge, Timeline, priceText, whenText } from "../../features/bookings/BookingParts";
+import { CancelPanel, ConfirmPanel, Detail, MatchingPanel, QuotePanel, StatusBadge, Timeline, priceText, whenText } from "../../features/bookings/BookingParts";
 import { RequestForm, type RequestValues } from "../../features/bookings/RequestForm";
 import { type Service, watchActiveServices } from "../../lib/admin/catalogue-store";
 import { FullPageSpinner } from "../../lib/auth/guards";
@@ -183,14 +183,13 @@ export function BookingDetailPage({ store = bookingStore, watchOne = watchBookin
   if (booking === undefined) return <FullPageSpinner />;
   if (booking === null) return <Failure message="Booking not found." />;
 
-  const searching = booking.status === BookingStatus.REQUESTED || booking.status === BookingStatus.MATCHING;
   return (
     <Page title={booking.serviceSnapshot.name}>
       <div className="flex flex-wrap items-center gap-3">
         <StatusBadge status={booking.status} />
-        {searching && <span className="text-sm text-ink-600">We'll show your technician here as soon as one accepts.</span>}
       </div>
 
+      <MatchingPanel booking={booking} store={store} />
       <QuotePanel booking={booking} store={store} />
       <ConfirmPanel booking={booking} store={store} />
 
