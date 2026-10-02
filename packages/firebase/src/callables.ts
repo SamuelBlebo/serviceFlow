@@ -16,6 +16,7 @@ import {
   verifyOtpOutput,
   requestPayoutInput,
   reassignBookingInput,
+  rematchBookingInput,
   respondToOfferInput,
   respondToQuoteInput,
   selectTechnicianInput,
@@ -108,6 +109,7 @@ export const callables = {
     output: mutationResult,
     stage: "bookings",
   }),
+  rematchBooking: defineCallable({ name: "bookings-rematch", input: rematchBookingInput, output: mutationResult, stage: "bookings" }),
   respondToOffer: defineCallable({
     name: "bookings-respondToOffer",
     input: respondToOfferInput,

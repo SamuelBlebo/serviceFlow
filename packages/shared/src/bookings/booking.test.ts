@@ -16,7 +16,10 @@ import {
   canSubmitQuote,
   isOpenBooking,
   isQuoteWithinRange,
+  formatDistance,
+  matchingDeadlineMs,
   scheduleProblem,
+  selectableCandidates,
 } from "./booking";
 
 const REQ = "req_12345678";
@@ -73,6 +76,25 @@ describe("scheduleProblem", () => {
     expect(scheduleProblem(PreferredTime.SCHEDULED, NOW + 30 * 86_400_000, NOW)).toBeNull();
     expect(scheduleProblem(PreferredTime.SCHEDULED, NOW + 31 * 86_400_000, NOW)).toMatch(/30 days/);
     expect(scheduleProblem(PreferredTime.SCHEDULED, Number.NaN, NOW)).toMatch(/Choose a date/);
+  });
+});
+
+describe("matching helpers", () => {
+  it("gives scheduled jobs until their time and others the matching window, never shortening a deadline", () => {
+    const later = NOW + 3 * 86_400_000;
+    expect(matchingDeadlineMs({ preferredTime: PreferredTime.SCHEDULED, scheduledAtMs: later, currentDeadlineMs: null }, NOW, 60)).toBe(later);
+    expect(matchingDeadlineMs({ preferredTime: PreferredTime.ASAP, scheduledAtMs: null, currentDeadlineMs: null }, NOW, 60)).toBe(NOW + 60 * MIN);
+    expect(matchingDeadlineMs({ preferredTime: PreferredTime.ASAP, scheduledAtMs: null, currentDeadlineMs: NOW + 90 * MIN }, NOW, 60)).toBe(NOW + 90 * MIN);
+  });
+
+  it("formats short distances kindly", () => {
+    expect(formatDistance(0)).toBe("under 1 km away");
+    expect(formatDistance(2.4)).toBe("2.4 km away");
+  });
+
+  it("hides declined and currently offered candidates", () => {
+    const candidates = [{ technicianId: "a" }, { technicianId: "b" }, { technicianId: "c" }];
+    expect(selectableCandidates({ candidates, declinedTechnicianIds: ["a"], offeredTechnicianId: "b" })).toEqual([{ technicianId: "c" }]);
   });
 });
 

@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Status | **Stage 7 (Bookings) complete (2026-10-02). Stage 8 (Matching) not started.** Stage records: §20.5 (Stage 2), §21 (Stage 3), §22 (Stage 4), §23 (Stage 5), §24 (Stage 6), §25 (Stage 7). |
+| Status | **Stage 8 (Matching) complete (2026-10-02). Stage 9 (Technician mobile workflow) not started.** Stage records: §20.5 (Stage 2), §21 (Stage 3), §22 (Stage 4), §23 (Stage 5), §24 (Stage 6), §25 (Stage 7), §26 (Stage 8). |
 | Date | 2026-09-30 |
 | Audited commit | `effae03` (main): "Initial commit: Home Service backend + WhatsApp booking slice" |
 | Scope | Audit and blueprint only. No code, data, Firebase or deployment changes were made |
@@ -1759,3 +1759,43 @@ Decisions taken at the start of the stage: **D4** — the technician quotes with
 - Payment invoice at confirmation, ratings, disputes (`DISPUTED` transitions) — their stages.
 - Scheduling a specific time on mobile (no date picker yet) and adding addresses on mobile.
 - Removing the legacy bookings module: deferred, because the legacy WhatsApp bot still books through it.
+
+## 26. Stage 8: Matching (2026-10-02)
+
+Stage 7 was committed as `fa8fc3f` on `stage-7-bookings`. Stage 8 is on `stage-8-matching`. It follows the plan as written (§5.3, §8.3, the WhatsApp flow in §5.12): matching proposes up to 3 technicians and the customer chooses.
+
+### Scope delivered
+
+| Area | Delivered |
+| --- | --- |
+| Shared | State machine: SYSTEM may cancel REQUESTED/MATCHING bookings (D-12) — the only change to the ported table. `resolveNeededAt`: TOMORROW uses tomorrow's hours. `matchingDeadlineMs`, `selectableCandidates`, `formatDistance`; booking gains `matchingExpiresAt`, `lastMatchedAt`; `rematchBookingInput` |
+| Functions | `matchBooking` (VERIFIED + online + service query, then not busy / not the customer / not a decliner / in radius / available in the platform time zone, deterministic score with settings weights and radius, top 3 stored); runs right after `bookings-create`. `bookings-selectTechnician` (stored candidates only, re-checked, offer deadline, offer counter in the same transaction). `bookings-rematch`. Decline, expiry and reassignment return to matching, exclude the technician, extend the deadline and re-search when nobody is left. `schedules-sweepBookings` every minute: expire offers, cancel unmatched bookings past their deadline (SYSTEM, with reason), re-search bookings without candidates |
+| Indexes | `status` + `matchingExpiresAt` for the sweep (the technician matching index existed since Stage 2) |
+| Web | Booking detail: "Choose your technician" (rating or "New on ServiceFlow", jobs done, distance), "Waiting for … to accept" with time left, "No technician is available right now" + "Search again". Admin detail lists candidates (score, declined/offered) and the auto-cancel time |
+| Mobile | The same candidate choice, waiting state and search-again on the booking screen |
+
+### Verified results
+
+| Check | Result |
+| --- | --- |
+| `pnpm install --frozen-lockfile` | OK (no new dependencies) |
+| `pnpm typecheck` | 8/8 packages |
+| `pnpm test` | 440 pass: shared 190, firebase 13, functions 42, web 110, mobile 40, legacy API 45 (unchanged) |
+| `pnpm test:rules` | 63 pass (rules unchanged) |
+| `pnpm test:integration` | 88 pass (13 matching domain tests: every hard filter, ranking, TOMORROW hours, settings weights/radius, empty results then re-search, D-6 refusals, decline → re-search excluding decliners, reassignment, offer expiry, matching expiry, scheduled deadline, sweep re-search, untouched active jobs; plus 1 over HTTP) |
+| `pnpm build` | OK; web first-load chunk 69 KB gzipped |
+| Mobile | `expo install --check` up to date; `expo export` Android bundle OK |
+| Browser end to end | Bookings 26/26 (real matching recommends the in-range plumber and not the out-of-range one → customer chooses → offer with deadline → technician accepts → full job → confirmation; a decline with nobody else in range shows "No technician is available" and the decliner isn't recommended again), technicians 15/15, profiles 14/14, services 12/12, auth 14/14 |
+
+### Found and fixed during the stage
+
+- **"Tomorrow" bookings were matched against today's working hours** (legacy behaviour kept in the Stage 2 port). Now TOMORROW uses the same time tomorrow; a test proves a Saturday-only technician is matched for a Friday "tomorrow" booking.
+- **"0 km away"** for very close technicians now reads "under 1 km away".
+- Legacy defects fixed in the replacement: **D-6**, **D-12**.
+
+### Not in this stage
+
+- Notifying the technician of a new offer (push) and the customer of decisions — Notifications stage. Until then the technician sees offers in the job screens built next.
+- Technician job screens (offer card with countdown, accept/decline, next step, quote) — Technician mobile workflow stage (next). The callables are built and tested.
+- A geohash pre-filter for large technician counts (§8.3) — only needed beyond a few thousand online technicians per service; scoring code won't change.
+- The scheduled sweep doesn't run in the Functions emulator; it is covered by integration tests that call it directly.

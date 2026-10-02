@@ -28,6 +28,11 @@ export function bookingIdFor(customerUid: string, requestId: string): string {
   return `bk_${createHash("sha256").update(`${customerUid}:${requestId}`).digest("hex").slice(0, 20)}`;
 }
 
+/** Parses a booking snapshot read outside `readBooking` (e.g. in queries and sweeps). */
+export function readBookingSnapshot(snap: { id: string; data(): unknown }): Booking {
+  return bookingDoc.parse(snap.data());
+}
+
 export function receiptRef(db: Firestore, bookingId: string, uid: string, requestId: string): DocumentReference {
   return db.doc(paths.bookingRequest(bookingId, `${uid}_${requestId}`));
 }

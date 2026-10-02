@@ -6,7 +6,9 @@ import {
   QuoteStatus,
   canActorTransition,
   formatMoney,
+  formatDistance,
   formatMoneyRange,
+  selectableCandidates,
 } from "@serviceflow/shared";
 import { type ReactNode, useState } from "react";
 import { Button, TextAreaField } from "../../components/ui";
@@ -106,6 +108,83 @@ function useAction() {
     }
   }
   return { busy, error, setError, run };
+}
+
+const minutesLeft = (ms: number, now: number) => Math.max(0, Math.ceil((ms - now) / 60_000));
+
+/**
+ * While looking for a technician: the recommended technicians to choose
+ * from (only these can be offered the job), or a way to search again.
+ * While an offer is out: who it went to and how long they have to answer.
+ */
+export function MatchingPanel({
+  booking,
+  store,
+  now = Date.now,
+}: {
+  booking: Booking;
+  store: Pick<BookingStore, "selectTechnician" | "rematch">;
+  now?: () => number;
+}) {
+  const action = useAction();
+  if (booking.status === BookingStatus.OFFERED) {
+    const offered = booking.candidates.find((c) => c.technicianId === booking.offeredTechnicianId);
+    return (
+      <section className="rounded-xl border border-brand-200 bg-brand-50 p-5" data-testid="offer-panel">
+        <h2 className="font-semibold text-ink-900">Waiting for {offered?.displayName ?? "the technician"} to accept</h2>
+        <p className="mt-1 text-ink-700">
+          {booking.offerExpiresAt
+            ? `They have about ${minutesLeft(booking.offerExpiresAt.toMillis(), now())} minutes to answer. If they don't, you can choose someone else.`
+            : "You'll see here as soon as they answer."}
+        </p>
+      </section>
+    );
+  }
+  if (booking.status !== BookingStatus.MATCHING && booking.status !== BookingStatus.REQUESTED) return null;
+
+  const choices = selectableCandidates(booking);
+  return (
+    <section className="rounded-xl border border-ink-100 bg-white p-5" data-testid="matching-panel">
+      {choices.length === 0 ? (
+        <>
+          <h2 className="font-semibold text-ink-900">No technician is available right now</h2>
+          <p className="mt-1 text-ink-700">We'll keep looking and show recommended technicians here. You can also search again now.</p>
+          <Button className="mt-4" variant="secondary" busy={action.busy} onClick={() => void action.run((requestId) => store.rematch({ requestId, bookingId: booking.id }))}>
+            Search again
+          </Button>
+        </>
+      ) : (
+        <>
+          <h2 className="font-semibold text-ink-900">Choose your technician</h2>
+          <p className="mt-1 text-sm text-ink-600">Verified providers near you, best match first. The one you choose has a few minutes to accept.</p>
+          <ul className="mt-4 space-y-3">
+            {choices.map((c) => (
+              <li key={c.technicianId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ink-100 px-4 py-3" data-testid={`candidate-${c.technicianId}`}>
+                <span>
+                  <span className="block font-medium text-ink-900">{c.displayName}</span>
+                  <span className="text-sm text-ink-600">
+                    {c.averageRating > 0 ? `★ ${c.averageRating.toFixed(1)}` : "New on ServiceFlow"} · {c.completedJobs} jobs done · {formatDistance(c.distanceKm)}
+                  </span>
+                </span>
+                <Button
+                  busy={action.busy}
+                  aria-label={`Choose ${c.displayName}`}
+                  onClick={() => void action.run((requestId) => store.selectTechnician({ requestId, bookingId: booking.id, technicianId: c.technicianId }))}
+                >
+                  Choose
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {action.error && (
+        <p role="alert" className="mt-2 text-sm text-danger">
+          {action.error}
+        </p>
+      )}
+    </section>
+  );
 }
 
 /** Shown when the technician has proposed a price (Decision D4). */

@@ -136,3 +136,35 @@ export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
   [BookingStatus.DISPUTED]: "Under review",
   [BookingStatus.CANCELLED]: "Cancelled",
 };
+
+/**
+ * When an unmatched booking is cancelled by the system (fixes D-12): a
+ * scheduled job gets until its scheduled time; anything else gets the
+ * platform's matching window from now. Returning to matching after a
+ * decline or an expired offer never shortens an existing deadline.
+ */
+export function matchingDeadlineMs(
+  booking: { preferredTime: PreferredTime; scheduledAtMs: number | null; currentDeadlineMs: number | null },
+  nowMs: number,
+  matchingExpiryMinutes: number,
+): number {
+  const fresh =
+    booking.preferredTime === PreferredTime.SCHEDULED && booking.scheduledAtMs !== null
+      ? booking.scheduledAtMs
+      : nowMs + matchingExpiryMinutes * 60_000;
+  return Math.max(fresh, booking.currentDeadlineMs ?? 0);
+}
+
+/** Candidates the customer can still choose (not declined, not the one currently offered). */
+export function selectableCandidates<C extends { technicianId: string }>(
+  booking: { candidates: readonly C[]; declinedTechnicianIds: readonly string[]; offeredTechnicianId: string | null },
+): C[] {
+  return booking.candidates.filter(
+    (c) => !booking.declinedTechnicianIds.includes(c.technicianId) && c.technicianId !== booking.offeredTechnicianId,
+  );
+}
+
+/** "under 1 km away" / "2.4 km away" — candidate distances are rounded to 0.1 km. */
+export function formatDistance(km: number): string {
+  return km < 1 ? "under 1 km away" : `${km} km away`;
+}

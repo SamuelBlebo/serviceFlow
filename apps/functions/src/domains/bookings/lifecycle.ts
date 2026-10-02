@@ -16,6 +16,7 @@ import {
 } from "@serviceflow/shared";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { adminActionData, adminActionRef } from "../../lib/audit";
+import { backToMatching, readSettingsInTx } from "./matching";
 import { type BookingDeps, assertAssignedTechnician, assertCustomer, readBooking, writeReceipt, writeTransition } from "./common";
 
 type Done = Promise<{ ok: true; id: string }>;
@@ -37,7 +38,7 @@ export async function respondToOffer(
 
   await db.runTransaction(async (tx) => {
     const { ref, booking, receipt, done } = await readBooking(tx, db, input.bookingId, uid, input.requestId);
-    const technician = await tx.get(technicianRef);
+    const [technician, settings] = await Promise.all([tx.get(technicianRef), readSettingsInTx(tx, db)]);
     if (done) return;
     if (booking.status !== BookingStatus.OFFERED || booking.offeredTechnicianId !== uid) {
       throw new ConflictError("This job is no longer offered to you.");
@@ -81,8 +82,7 @@ export async function respondToOffer(
         byUid: uid,
         note: input.reason ?? null,
         extra: {
-          offeredTechnicianId: null,
-          offerExpiresAt: null,
+          ...backToMatching(booking, settings, nowMs),
           declinedTechnicianIds: FieldValue.arrayUnion(uid),
           participantIds: FieldValue.arrayRemove(uid),
         },
@@ -264,6 +264,7 @@ export async function reassignBooking(
   const { db } = deps;
   await db.runTransaction(async (tx) => {
     const { ref, booking, receipt, done } = await readBooking(tx, db, input.bookingId, adminUid, input.requestId);
+    const settings = await readSettingsInTx(tx, db);
     if (done) return;
     const offeredTo = booking.offeredTechnicianId;
     writeTransition(tx, db, {
@@ -274,8 +275,7 @@ export async function reassignBooking(
       byUid: adminUid,
       note: input.reason,
       extra: {
-        offeredTechnicianId: null,
-        offerExpiresAt: null,
+        ...backToMatching(booking, settings, deps.now?.() ?? Date.now()),
         ...(offeredTo ? { participantIds: FieldValue.arrayRemove(offeredTo) } : {}),
       },
     });

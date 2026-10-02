@@ -62,6 +62,8 @@ export function history(...statuses: Booking["status"][]): HistoryEntry[] {
 export function fakeBookingStore(overrides: Partial<BookingStore> = {}): BookingStore {
   return {
     create: vi.fn(async () => ({ ok: true as const, id: "bk_new" })),
+    selectTechnician: vi.fn(async () => ({ ok: true as const, id: "bk_1" })),
+    rematch: vi.fn(async () => ({ ok: true as const, id: "bk_1" })),
     cancel: vi.fn(async () => ({ ok: true as const, id: "bk_1" })),
     respondToQuote: vi.fn(async () => ({ ok: true as const, id: "bk_1" })),
     confirm: vi.fn(async () => ({ ok: true as const, id: "bk_1" })),

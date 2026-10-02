@@ -23,8 +23,13 @@ describe("zonedWallTimeToDate", () => {
 describe("resolveNeededAt", () => {
   const now = new Date(Date.UTC(2026, 8, 30, 10, 15)); // Wednesday 10:15 Accra
 
-  it("uses now for ASAP / TODAY / TOMORROW (as the legacy code did)", () => {
+  it("uses now for ASAP and TODAY (as the legacy code did)", () => {
     expect(resolveNeededAt(PreferredTime.ASAP, null, now)).toEqual({ dayOfWeek: 3, time: "10:15" });
+    expect(resolveNeededAt(PreferredTime.TODAY, null, now)).toEqual({ dayOfWeek: 3, time: "10:15" });
+  });
+
+  it("uses the same time tomorrow for TOMORROW (legacy matched against today)", () => {
+    expect(resolveNeededAt(PreferredTime.TOMORROW, null, now)).toEqual({ dayOfWeek: 4, time: "10:15" });
   });
 
   it("uses scheduledAt for SCHEDULED bookings", () => {

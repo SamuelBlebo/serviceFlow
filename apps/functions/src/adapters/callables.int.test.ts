@@ -200,7 +200,10 @@ describe("booking callables over HTTP", () => {
     await customerWithAddress("cust-book-1");
     const { data } = await createBooking(input); // undefined fields arrive as null
     expect(data.id).toMatch(/^bk_/);
-    expect((await admin.db.doc(`bookings/${data.id}`).get()).get("status")).toBe("REQUESTED");
+    // Matching runs right after creation; with no technicians online it waits in MATCHING.
+    const created = (await admin.db.doc(`bookings/${data.id}`).get()).data()!;
+    expect(created.status).toBe("MATCHING");
+    expect(created.candidates).toEqual([]);
 
     await cancelBooking({ requestId: "req_http_cancel_1", bookingId: data.id, reason: "Fixed it myself" });
     expect((await admin.db.doc(`bookings/${data.id}`).get()).get("status")).toBe("CANCELLED");
@@ -212,5 +215,25 @@ describe("booking callables over HTTP", () => {
     expect((await failure(setPrice({ requestId: "req_http_price_1", bookingId: "b1", amountMinor: 100, reason: "Test" }))).code).toBe(
       "functions/permission-denied",
     );
+  });
+
+  it("matching on create finds an online technician, and the customer can choose them", async () => {
+    await admin.db.doc("technicians/tech-http-1").set({
+      displayName: "Kojo", photoPath: null, verificationStatus: "VERIFIED", isOnline: true, activeBookingId: null,
+      serviceIds: ["plumbing"], serviceAreas: [{ areaId: "osu", name: "Osu", lat: 5.55, lng: -0.17, radiusKm: 8 }],
+      weeklyAvailability: [0, 1, 2, 3, 4, 5, 6].map((day) => ({ day, start: "00:00", end: "23:59" })),
+      stats: { ratingSum: 0, ratingCount: 0, avgRating: 4.5, completed: 3, cancelled: 0, offered: 3, responded: 3 },
+    });
+    await customerWithAddress("cust-book-3");
+    const { data } = await createBooking({ requestId: "req_http_booking_3", serviceId: "plumbing", problemDescription: "Kitchen sink is leaking", addressId: "home", preferredTime: "ASAP" });
+    const booking = (await admin.db.doc(`bookings/${data.id}`).get()).data()!;
+    expect(booking.candidates.map((c: { technicianId: string }) => c.technicianId)).toEqual(["tech-http-1"]);
+
+    const select = fn<Record<string, unknown>, { ok: true }>(callables.selectTechnician.name);
+    expect((await failure(select({ requestId: "req_http_select_1", bookingId: data.id, technicianId: "not-a-candidate" }))).code).toBe(
+      "functions/permission-denied",
+    );
+    await select({ requestId: "req_http_select_2", bookingId: data.id, technicianId: "tech-http-1" });
+    expect((await admin.db.doc(`bookings/${data.id}`).get()).get("status")).toBe("OFFERED");
   });
 });

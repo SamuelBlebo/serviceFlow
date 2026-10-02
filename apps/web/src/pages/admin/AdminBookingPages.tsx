@@ -249,6 +249,24 @@ export function AdminBookingDetailPage({
         </dl>
       </section>
 
+      {booking.candidates.length > 0 && (
+        <section className="rounded-xl border border-ink-100 bg-white p-5">
+          <h2 className="font-semibold text-ink-900">Recommended technicians</h2>
+          <ul className="mt-3 space-y-1 text-sm text-ink-700">
+            {booking.candidates.map((c) => (
+              <li key={c.technicianId}>
+                {c.displayName} ({c.technicianId}) · score {c.score} · {c.distanceKm} km
+                {booking.declinedTechnicianIds.includes(c.technicianId) ? " · declined" : ""}
+                {booking.offeredTechnicianId === c.technicianId ? " · offered" : ""}
+              </li>
+            ))}
+          </ul>
+          {booking.matchingExpiresAt && ["REQUESTED", "MATCHING", "OFFERED"].includes(booking.status) && (
+            <p className="mt-2 text-sm text-ink-500">Cancelled automatically if unmatched by {dateTime(booking.matchingExpiresAt.toMillis())}.</p>
+          )}
+        </section>
+      )}
+
       <div className="grid gap-4 md:grid-cols-2">
         <SetPriceForm booking={booking} store={store} />
         <ReassignForm booking={booking} store={store} />

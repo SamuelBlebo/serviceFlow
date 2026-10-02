@@ -93,7 +93,15 @@ Phone (customer / technician)                         Admin
 - **Price authority (Decision D4).** The assigned technician quotes within the service's price range (ACCEPTED/EN_ROUTE/ARRIVED); the customer accepts or declines with a reason; work can't start (ARRIVED → IN_PROGRESS) until a price is agreed. `admin-setBookingPrice` sets any amount (recent sign-in, reason, audited). On confirmation the server locks `finalMinor` from the agreed quote — never a client figure (fixes D-2) — and snapshots the commission percent (technician → service → global rule → platform default).
 - **Counters in the transaction (fixes D-8).** Offer responses, completed and technician-cancelled jobs, and the technician's `activeBookingId` (one job at a time) change in the same transaction as the transition.
 - **Privacy.** The customer's phone and landmark directions live in `bookings/{id}/private/contact`, readable by the customer, admins, and the assigned technician only from ACCEPTED until COMPLETED. Bookings are readable by `participantIds` (customer + offered/assigned technician) and admins; list queries must use `participantIds array-contains <uid>`.
-- **Not yet:** matching (REQUESTED → MATCHING → OFFERED, candidates, offer expiry) is the next stage; until then new bookings honestly read "Finding a technician". The payment invoice is created at confirmation from the Payments stage on.
+- **Not yet:** the payment invoice is created at confirmation from the Payments stage on.
+
+## Matching (Stage 8)
+
+- **Run on create.** `bookings-create` runs matching right after the booking is written (REQUESTED → MATCHING, SYSTEM). If matching fails the booking still exists; the sweep or the customer's "Search again" (`bookings-rematch`) retries.
+- **Query, then pure rules.** Firestore query: VERIFIED + online + offers the service (indexed). Then in code: not busy (`activeBookingId`), not the customer, not a previous decliner, inside a service area's radius, and available at the needed time in `settings/platform.timezone` (TOMORROW uses tomorrow's hours). The shared deterministic score (weights and radius from `settings/platform`) ranks them; the top 3 are stored on the booking as `candidates`.
+- **Customer chooses (fixes D-6).** `bookings-selectTechnician` only accepts a stored, still-selectable candidate, re-checks them (verified, online, free, offers the service), sets `offerExpiresAt` (`offerTimeoutMinutes`) and counts the offer — all in one transaction.
+- **Back to matching.** A decline, an expired offer or an admin reassignment returns the booking to MATCHING; the technician is excluded from it, and if nobody selectable is left a new search runs. The matching deadline is extended, never shortened.
+- **Expiry sweep (fixes D-12).** `schedules-sweepBookings` runs every minute: expired offers go back to matching (SYSTEM), bookings still unmatched after `matchingExpiresAt` (the matching window, or the scheduled time) are cancelled by SYSTEM with a reason, and bookings without candidates are searched again. The state machine now lets SYSTEM cancel REQUESTED/MATCHING bookings — the only change to the ported table. The emulator doesn't run schedules; integration tests call the sweep directly.
 
 ## Cloud Functions build
 
@@ -109,6 +117,7 @@ Phone (customer / technician)                         Admin
 ## Stage log
 
 - **Stage 2 — Foundation**: monorepo, shared domain packages, Firebase config (deny-by-default rules, indexes), Functions skeleton with health checks and seed, web and mobile shells reading live services.
+- **Stage 8 — Matching**: matching on create, customer choice among stored candidates, re-search, offer and matching expiry sweep, candidate pickers on web and mobile.
 - **Stage 7 — Bookings**: server-only booking state machine with history and idempotency receipts, create/cancel/offer response/job steps/quote/confirm callables, admin reassign and price override, booking rules, customer booking pages (web + mobile) and admin bookings.
 - **Stage 6 — Technician onboarding and verification**: register/services/verification/review callables, Storage rules for private ID documents, technician rules, web provider + admin review pages, mobile onboarding with photo capture and compression.
 - **Stage 5 — Services**: audited admin catalogue callables, admin services page, public services list and detail pages, null-tolerant optional callable inputs.

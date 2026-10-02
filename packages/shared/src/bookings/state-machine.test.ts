@@ -52,6 +52,13 @@ describe("booking state machine", () => {
     ).toThrow();
   });
 
+  it("SYSTEM can cancel a booking that was never matched (D-12), but not one in progress", () => {
+    expect(() => assertActorCanTransition(BookingStatus.MATCHING, BookingStatus.CANCELLED, "SYSTEM")).not.toThrow();
+    expect(() => assertActorCanTransition(BookingStatus.REQUESTED, BookingStatus.CANCELLED, "SYSTEM")).not.toThrow();
+    expect(() => assertActorCanTransition(BookingStatus.ACCEPTED, BookingStatus.CANCELLED, "SYSTEM")).toThrow();
+    expect(() => assertActorCanTransition(BookingStatus.OFFERED, BookingStatus.CANCELLED, "SYSTEM")).toThrow();
+  });
+
   it("only SYSTEM can mark a booking PAID", () => {
     expect(() =>
       assertActorCanTransition(BookingStatus.CUSTOMER_CONFIRMED, BookingStatus.PAID, "CUSTOMER"),
