@@ -100,18 +100,3 @@ function useIdleSignOut(timeoutMs: number | undefined) {
 }
 
 export const ADMIN_AREA_IDLE_TIMEOUT_MS = ADMIN_IDLE_TIMEOUT_MS;
-
-/** Area landing placeholder until the dashboard stages fill it in. */
-export function AreaHome({ areaName, stage }: { areaName: string; stage: string }) {
-  const { session } = useAuth();
-  const name = session.status === "signedIn" ? (session.user.displayName || null) : null;
-  return (
-    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
-      <h1 className="text-2xl font-semibold tracking-tight text-ink-900">{name ? `Welcome, ${name}` : "Welcome"}</h1>
-      <p className="mt-3 text-ink-600">
-        You're signed in to the {areaName.toLowerCase()} area. This page is built in the{" "}
-        <strong className="font-medium text-ink-900">{stage}</strong> stage.
-      </p>
-    </div>
-  );
-}

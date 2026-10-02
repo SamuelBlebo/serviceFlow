@@ -14,7 +14,8 @@ rules_version = '2';
 // settings (Stage 2); account documents (Stage 3); customer profiles and
 // saved addresses (Stage 4); technician profiles and verification records
 // (Stage 6); read access to bookings, their history and private contact
-// (Stage 7); job photo records (Stage 9). Every other collection —
+// (Stage 7); job photo records (Stage 9); admin reads of the audit log and
+// commission rules (Stage 10). Every other collection —
 // including otpChallenges and rateLimits, which are server-only forever —
 // stays closed until the stage that introduces it.
 service cloud.firestore {
@@ -224,6 +225,18 @@ service cloud.firestore {
 
     match /serviceAreas/{areaId} {
       allow read: if resource.data.isActive == true || isAdmin();
+      allow write: if false;
+    }
+
+    // ── Admin-only reads (Stage 10) ────────────────────────────────────
+    // The audit log and commission rules: admins read, Functions write.
+    match /adminActions/{actionId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /commissionRules/{ruleId} {
+      allow read: if isAdmin();
       allow write: if false;
     }
 

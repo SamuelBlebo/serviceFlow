@@ -4,6 +4,8 @@ import { Link } from "react-router";
 import { Button } from "../../components/ui";
 import { messageFromError } from "../../lib/errors";
 import { useReadyTechnician } from "../../lib/technician/TechnicianProvider";
+import { watchMyJobs } from "../../lib/technician/job-store";
+import { TechJobsCard } from "./TechJobsPages";
 
 const STATUS_COPY: Record<VerificationStatus, { title: string; body: string; tone: "info" | "good" | "warn" }> = {
   UNSUBMITTED: { title: "Finish your registration", body: "Complete the steps below so we can verify you and start sending you jobs.", tone: "info" },
@@ -14,7 +16,7 @@ const STATUS_COPY: Record<VerificationStatus, { title: string; body: string; ton
 };
 
 /** Provider home: verification status, onboarding checklist and the online switch. */
-export function TechDashboard() {
+export function TechDashboard({ watchJobs = watchMyJobs }: { watchJobs?: typeof watchMyJobs } = {}) {
   const ready = useReadyTechnician();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,6 +64,8 @@ export function TechDashboard() {
           </p>
         )}
       </section>
+
+      {canGoOnline(status) && <TechJobsCard uid={uid} watchJobs={watchJobs} />}
 
       {!canGoOnline(status) && status !== VerificationStatus.SUSPENDED && (
         <ol className="space-y-3">

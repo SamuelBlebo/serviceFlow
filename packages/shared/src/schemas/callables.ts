@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { BookingStatus, IdDocumentType, MobileMoneyNetwork, PaymentMethod, PreferredTime } from "../enums";
+import { SETTINGS_LIMITS, isInGhana, isValidCommissionPercent } from "../admin-settings";
+import { BookingStatus, CommissionScope, IdDocumentType, MobileMoneyNetwork, PaymentMethod, PreferredTime } from "../enums";
 import { availabilityWindow } from "./documents";
 import { SERVICE_LIMITS, slugify } from "../catalogue";
 import { PROFILE_LIMITS, normalizeGhanaPostGps } from "../profile";
@@ -365,3 +366,55 @@ export const setServiceActiveInput = z.object({
   reason: optionalInput(z.string().trim().max(300)),
 });
 export type SetServiceActiveInput = z.input<typeof setServiceActiveInput>;
+
+// ── Admin settings (Stage 10) ────────────────────────────────────────────
+
+const commissionPercent = z.number().refine(isValidCommissionPercent, {
+  message: `Use a percentage from 0 to ${SETTINGS_LIMITS.commissionPercentMax} (up to 2 decimals)`,
+});
+const intBetween = (r: { min: number; max: number }, what: string) =>
+  z.number().int().min(r.min, `${what} must be at least ${r.min}`).max(r.max, `${what} must be at most ${r.max}`);
+
+/** Platform settings admins may change (audited; recent sign-in). */
+export const updatePlatformSettingsInput = z.object({
+  requestId,
+  defaultCommissionPercent: commissionPercent,
+  offerTimeoutMinutes: intBetween(SETTINGS_LIMITS.offerTimeoutMinutes, "Offer time"),
+  matchingExpiryMinutes: intBetween(SETTINGS_LIMITS.matchingExpiryMinutes, "Matching time"),
+  matchRadiusKm: z.number().min(SETTINGS_LIMITS.matchRadiusKm.min).max(SETTINGS_LIMITS.matchRadiusKm.max),
+  supportPhone: optionalInput(ghanaPhone),
+});
+export type UpdatePlatformSettingsInput = z.input<typeof updatePlatformSettingsInput>;
+
+/** A new commission rule. Rules are never edited — deactivate and create a new one (clear audit trail). */
+export const createCommissionRuleInput = z
+  .object({
+    requestId,
+    scope: z.enum(CommissionScope),
+    serviceId: optionalInput(docId),
+    technicianId: optionalInput(docId),
+    percent: commissionPercent,
+  })
+  .refine((v) => v.scope !== "SERVICE" || Boolean(v.serviceId), { message: "Choose the service", path: ["serviceId"] })
+  .refine((v) => v.scope !== "TECHNICIAN" || Boolean(v.technicianId), { message: "Choose the technician", path: ["technicianId"] });
+export type CreateCommissionRuleInput = z.input<typeof createCommissionRuleInput>;
+
+export const setCommissionRuleActiveInput = z.object({ requestId, ruleId: docId, isActive: z.boolean() });
+export type SetCommissionRuleActiveInput = z.input<typeof setCommissionRuleActiveInput>;
+
+/** Create (no areaId) or edit a service area. Areas are hidden, never deleted (addresses reference them). */
+export const upsertServiceAreaInput = z
+  .object({
+    requestId,
+    areaId: optionalInput(docId),
+    name: z.string().trim().min(2, "Enter the area name").max(SETTINGS_LIMITS.areaNameMax),
+    city: z.string().trim().min(2, "Enter the city").max(60),
+    region: z.string().trim().min(2, "Enter the region").max(60),
+    center: latLng.refine(isInGhana, { message: "The area's centre must be in Ghana" }),
+    defaultRadiusKm: z.number().min(SETTINGS_LIMITS.areaRadiusKm.min).max(SETTINGS_LIMITS.areaRadiusKm.max),
+  })
+  .refine((v) => v.areaId !== undefined || slugify(v.name).length > 0, { message: "Use letters or numbers in the area name", path: ["name"] });
+export type UpsertServiceAreaInput = z.input<typeof upsertServiceAreaInput>;
+
+export const setServiceAreaActiveInput = z.object({ requestId, areaId: docId, isActive: z.boolean() });
+export type SetServiceAreaActiveInput = z.input<typeof setServiceAreaActiveInput>;

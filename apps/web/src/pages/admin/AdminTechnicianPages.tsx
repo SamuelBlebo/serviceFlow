@@ -1,5 +1,6 @@
 import { ID_DOCUMENT_LABELS, VerificationStatus } from "@serviceflow/shared";
 import { useEffect, useState } from "react";
+import { Link } from "react-router";
 import { ReviewActions } from "../../features/technician/ReviewActions";
 import { FullPageSpinner } from "../../lib/auth/guards";
 import {
@@ -155,7 +156,9 @@ export function AdminTechniciansPage({ store = technicianStore, watchTechnicians
           {shown.map((t) => (
             <li key={t.id} data-testid={`technician-${t.id}`} className="space-y-2 p-4">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="font-medium text-ink-900">{t.displayName}</p>
+                <Link to={`/admin/technicians/${t.id}`} className="font-medium text-brand-700 hover:text-brand-800">
+                  {t.displayName}
+                </Link>
                 <span className="rounded-full bg-ink-100 px-2 py-0.5 text-xs font-medium text-ink-700">{t.verificationStatus.toLowerCase()}</span>
                 {t.isOnline && <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-800">online</span>}
               </div>

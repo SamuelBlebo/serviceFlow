@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Status | **Stage 9 (Technician mobile workflow) complete (2026-10-02). Stage 10 (Web dashboards) not started.** Stage records: §20.5 (Stage 2), §21 (Stage 3), §22 (Stage 4), §23 (Stage 5), §24 (Stage 6), §25 (Stage 7), §26 (Stage 8), §27 (Stage 9). |
+| Status | **Stage 10 (Web dashboards) complete (2026-10-02). Stage 11 (Payments) not started.** Stage records: §20.5 (Stage 2), §21 (Stage 3), §22 (Stage 4), §23 (Stage 5), §24 (Stage 6), §25 (Stage 7), §26 (Stage 8), §27 (Stage 9), §28 (Stage 10). |
 | Date | 2026-09-30 |
 | Audited commit | `effae03` (main): "Initial commit: Home Service backend + WhatsApp booking slice" |
 | Scope | Audit and blueprint only. No code, data, Firebase or deployment changes were made |
@@ -1838,3 +1838,45 @@ Stage 8 was committed as `3c055e8` on `stage-8-matching`. Stage 9 is on `stage-9
 - Web technician job pages (`/tech/jobs`) — Web dashboards stage.
 - An offline upload queue for photos: uploads run directly (React Native Firebase retries transient failures); a persistent queue can follow if field testing shows the need.
 - Running the app on a device (no Android SDK here): verified by component tests, typecheck, config introspection and the Metro bundle.
+
+## 28. Stage 10: Web dashboards (2026-10-02)
+
+Stage 9 was committed as `00f79f5` on `stage-9-tech-workflow`. Stage 10 is on `stage-10-web-dashboards`. It fills every web page from the §11.2 route map whose data exists today; money pages wait for their stages.
+
+### Scope delivered
+
+| Area | Delivered |
+| --- | --- |
+| Shared | `admin-settings.ts`: `SETTINGS_LIMITS`, `GHANA_BOUNDS`/`isInGhana`, `isValidCommissionPercent` (0–50, two decimals); inputs for platform settings, commission rules (scoped rules must name their target) and service areas (centre inside Ghana) |
+| Functions | `admin-updatePlatformSettings` (changed fields only, audited before/after; other settings preserved), `admin-createCommissionRule` (target must exist; deterministic id per request), `admin-setCommissionRuleActive`, `admin-upsertServiceArea` (slug id, unique names), `admin-setServiceAreaActive`. Settings and commission callables need a recent sign-in |
+| Rules + indexes | Admins read `adminActions` and `commissionRules`; nobody writes them from a client. Indexes for technician job history and the audit log by target type |
+| Web admin | Dashboard (count-query KPIs, live bookings), customers list/detail, technician detail with stats and history, account suspend/reactivate UI, audit log with filters and diffs, settings page; technicians list links to detail; remaining placeholders name their stage |
+| Web technician | `/tech/jobs` (new requests with countdown, active, upcoming, done) and `/tech/jobs/:id` (accept/decline, next step, quote, contact, directions, cancel); dashboard card with the current job and new requests |
+| Web public | How it works, About, Contact |
+
+### Verified results
+
+| Check | Result |
+| --- | --- |
+| `pnpm install --frozen-lockfile` | OK (no new dependencies) |
+| `pnpm typecheck` | 8/8 packages |
+| `pnpm test` | 481 pass: shared 198, firebase 13, functions 42, web 129, mobile 54, legacy API 45 (unchanged) |
+| `pnpm test:rules` | 67 pass (1 new: admin-only reads of the audit log and commission rules) |
+| `pnpm test:integration` | 98 pass (6 new: settings changes and their audit, idempotency and no-op refusal; commission rules against real targets, switched off not edited; service areas create/edit/hide and duplicate names) |
+| `pnpm build` | OK; web first-load chunk 70 KB gzipped; admin dashboards 4.2 KB, settings 3.4 KB, technician jobs 4.3 KB gzipped (lazy) |
+| Mobile | `expo install --check` up to date; `expo export` Android bundle OK (no mobile changes) |
+| Browser end to end | New admin dashboards suite 15/15 (count-query KPIs under the rules, settings saved and audited with the before → after diff, commission rule, duplicate area refused, new area, customers and technician detail, later-stage placeholders); bookings 27/27, technicians 15/15, profiles 14/14, services 12/12, auth 14/14 — all six suites in one run |
+
+### Found and fixed during the stage
+
+- **"Settings saved" vanished immediately.** The settings form was keyed on the settings value, so the live update after a save remounted it and dropped the confirmation. Found by the new admin e2e suite; fixed, with a regression test.
+- **Matching recorded lastMatchedAt with the server clock** while the sweep compared it with the injected clock, so the "re-search empty bookings" rule depended on the time of day (an integration test started failing once the real clock passed the test's). Matching now stamps its own clock, like the deadlines.
+- **Two e2e checks depended on the clock**: the auth suite still looked for the old admin placeholder text, and the bookings decline scenario could find a plumber registered by another suite during working hours. Both made deterministic.
+- **Duplicate area names are refused clearly** ("There is already an area called …") — confirmed end to end against a seeded area.
+
+### Not in this stage
+
+- Payments, payouts, disputes and reports pages; technician earnings, wallet and reviews — their stages.
+- Editing match weights and payout minimums in the settings page (weights are expert configuration; the payout minimum arrives with payouts).
+- Admin user management (creating admins) — Production hardening (with MFA).
+- Large-scale customer search (the list loads the newest 200 and filters by name in the browser; server-side search can follow if needed).

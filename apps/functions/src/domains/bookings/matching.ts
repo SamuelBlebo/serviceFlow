@@ -109,7 +109,8 @@ export async function matchBooking(deps: BookingDeps, bookingId: string): Promis
   await db.runTransaction(async (tx) => {
     const current = readBookingSnapshot(await tx.get(ref));
     if (!SEARCHABLE.includes(current.status)) return;
-    const extra = { candidates, lastMatchedAt: FieldValue.serverTimestamp() };
+    // The injected clock (not a server timestamp): the sweep compares it with its own clock.
+    const extra = { candidates, lastMatchedAt: Timestamp.fromMillis(nowMs) };
     if (current.status === BookingStatus.REQUESTED) {
       writeTransition(tx, db, { ref, booking: current, to: BookingStatus.MATCHING, actor: BookingActor.SYSTEM, byUid: null, extra });
     } else {

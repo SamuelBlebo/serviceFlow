@@ -37,12 +37,23 @@ const loadTechSettings = () => import("../pages/tech/TechSettingsPages");
 const TechAvailabilityPage = lazyNamed(loadTechSettings, "TechAvailabilityPage");
 const TechProfilePage = lazyNamed(loadTechSettings, "TechProfilePage");
 const TechVerificationPage = lazyNamed(() => import("../pages/tech/TechVerificationPage"), "TechVerificationPage");
+const loadTechJobs = () => import("../pages/tech/TechJobsPages");
+const TechJobsPage = lazyNamed(loadTechJobs, "TechJobsPage");
+const TechJobDetailPage = lazyNamed(loadTechJobs, "TechJobDetailPage");
+const loadAdminDash = () => import("../pages/admin/AdminDashboardPages");
+const AdminHomePage = lazyNamed(loadAdminDash, "AdminHomePage");
+const AdminCustomersPage = lazyNamed(loadAdminDash, "AdminCustomersPage");
+const AdminCustomerDetailPage = lazyNamed(loadAdminDash, "AdminCustomerDetailPage");
+const AdminTechnicianDetailPage = lazyNamed(loadAdminDash, "AdminTechnicianDetailPage");
+const AdminAuditPage = lazyNamed(loadAdminDash, "AdminAuditPage");
+const AdminSettingsPage = lazyNamed(() => import("../pages/admin/AdminSettingsPage"), "AdminSettingsPage");
 
 const withSuspense = (node: ReactNode) => <Suspense fallback={<FullPageSpinner />}>{node}</Suspense>;
 import { BecomeProviderPage } from "../pages/public/BecomeProviderPage";
+import { AboutPage, ContactPage, HowItWorksPage } from "../pages/public/InfoPages";
 import { NotFoundPage, PlaceholderPage } from "../pages/public/PlaceholderPage";
 import { ServiceDetailPage, ServicesPage } from "../pages/public/ServicesPages";
-import { ADMIN_AREA_IDLE_TIMEOUT_MS, AreaHome, AreaLayout, type AreaNavItem } from "./layouts/AreaLayout";
+import { ADMIN_AREA_IDLE_TIMEOUT_MS, AreaLayout, type AreaNavItem } from "./layouts/AreaLayout";
 import { PublicLayout } from "./layouts/PublicLayout";
 
 /**
@@ -84,15 +95,14 @@ const ADMIN_NAV: AreaNavItem[] = [
   { to: "/admin/audit", label: "Audit log" },
 ];
 
-function areaRoutes(nav: AreaNavItem[], base: string, areaName: string, stage: string) {
-  return nav.map((item) =>
-    item.to === base
-      ? { index: true, element: <AreaHome areaName={areaName} stage={stage} /> }
-      : {
-          path: item.to.slice(base.length + 1),
-          element: <PlaceholderPage title={item.label} stage={stage} />,
-        },
-  );
+/** Honest placeholders for nav items a later stage builds, naming that stage. */
+function laterStage(nav: AreaNavItem[], base: string, stageFor: Record<string, string>) {
+  return nav
+    .filter((item) => item.to.slice(base.length + 1) in stageFor)
+    .map((item) => {
+      const path = item.to.slice(base.length + 1);
+      return { path, element: <PlaceholderPage title={item.label} stage={stageFor[path]!} /> };
+    });
 }
 
 export const routes = [
@@ -102,10 +112,10 @@ export const routes = [
       { index: true, element: <LandingPage /> },
       { path: "services", element: <ServicesPage /> },
       { path: "services/:slug", element: <ServiceDetailPage /> },
-      { path: "how-it-works", element: <PlaceholderPage title="How it works" stage="Web dashboards" /> },
+      { path: "how-it-works", element: <HowItWorksPage /> },
       { path: "become-a-provider", element: <BecomeProviderPage /> },
-      { path: "about", element: <PlaceholderPage title="About ServiceFlow" stage="Web dashboards" /> },
-      { path: "contact", element: <PlaceholderPage title="Contact us" stage="Web dashboards" /> },
+      { path: "about", element: <AboutPage /> },
+      { path: "contact", element: <ContactPage /> },
       { path: "login", element: <PhoneLoginPage /> },
       { path: "login/verify", element: <VerifyCodePage /> },
       { path: "admin/login", element: <AdminLoginPage /> },
@@ -167,9 +177,9 @@ export const routes = [
       { path: "availability", element: withSuspense(<TechAvailabilityPage />) },
       { path: "verification", element: withSuspense(<TechVerificationPage />) },
       { path: "profile", element: withSuspense(<TechProfilePage />) },
-      ...areaRoutes(TECH_NAV, "/tech", "Service provider", "Technician mobile workflow").filter(
-        (r) => "path" in r && !["availability", "verification", "profile"].includes(r.path ?? ""),
-      ),
+      { path: "jobs", element: withSuspense(<TechJobsPage />) },
+      { path: "jobs/:id", element: withSuspense(<TechJobDetailPage />) },
+      ...laterStage(TECH_NAV, "/tech", { earnings: "Wallet and payouts", wallet: "Wallet and payouts", payouts: "Wallet and payouts", reviews: "Ratings" }),
     ],
   },
   {
@@ -182,14 +192,18 @@ export const routes = [
       </RequireAuth>
     ),
     children: [
+      { index: true, element: withSuspense(<AdminHomePage />) },
+      { path: "customers", element: withSuspense(<AdminCustomersPage />) },
+      { path: "customers/:uid", element: withSuspense(<AdminCustomerDetailPage />) },
+      { path: "technicians/:uid", element: withSuspense(<AdminTechnicianDetailPage />) },
+      { path: "audit", element: withSuspense(<AdminAuditPage />) },
+      { path: "settings", element: withSuspense(<AdminSettingsPage />) },
       { path: "services", element: withSuspense(<AdminServicesPage />) },
       { path: "verification", element: withSuspense(<AdminVerificationPage />) },
       { path: "technicians", element: withSuspense(<AdminTechniciansPage />) },
       { path: "bookings", element: withSuspense(<AdminBookingsPage />) },
       { path: "bookings/:id", element: withSuspense(<AdminBookingDetailPage />) },
-      ...areaRoutes(ADMIN_NAV, "/admin", "Admin", "Web dashboards").filter(
-        (r) => !("path" in r) || !["services", "verification", "technicians", "bookings"].includes(r.path ?? ""),
-      ),
+      ...laterStage(ADMIN_NAV, "/admin", { payments: "Payments", payouts: "Wallet and payouts", disputes: "Disputes", reports: "Analytics and reports" }),
     ],
   },
 ];

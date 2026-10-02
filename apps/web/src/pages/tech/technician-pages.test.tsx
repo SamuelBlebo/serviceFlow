@@ -107,21 +107,21 @@ describe("TechRegisterPage", () => {
 
 describe("TechDashboard", () => {
   it("guides a new provider through the remaining steps", () => {
-    renderWithTechnician(<TechDashboard />);
+    renderWithTechnician(<TechDashboard watchJobs={() => () => undefined} />);
     expect(screen.getByTestId("status-card")).toHaveTextContent("Finish your registration");
     expect(screen.getByRole("link", { name: "Start" })).toHaveAttribute("href", "/tech/availability");
     expect(screen.queryByRole("button", { name: "Go online" })).not.toBeInTheDocument();
   });
 
   it("lets a verified provider go online", async () => {
-    const { store } = renderWithTechnician(<TechDashboard />, { state: readyTechnician(technician({ ...withWork, verificationStatus: "VERIFIED" })) });
+    const { store } = renderWithTechnician(<TechDashboard watchJobs={() => () => undefined} />, { state: readyTechnician(technician({ ...withWork, verificationStatus: "VERIFIED" })) });
     await userEvent.click(screen.getByRole("button", { name: "Go online" }));
     await waitFor(() => expect(store.setOnline).toHaveBeenCalledWith("u1", true));
   });
 
   it("never offers the online switch to pending or suspended providers", () => {
     for (const verificationStatus of ["PENDING", "SUSPENDED"] as const) {
-      const { unmount } = renderWithTechnician(<TechDashboard />, { state: readyTechnician(technician({ ...withWork, verificationStatus })) });
+      const { unmount } = renderWithTechnician(<TechDashboard watchJobs={() => () => undefined} />, { state: readyTechnician(technician({ ...withWork, verificationStatus })) });
       expect(screen.queryByRole("button", { name: /Go online/ })).not.toBeInTheDocument();
       unmount();
     }

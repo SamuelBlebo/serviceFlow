@@ -1,5 +1,10 @@
 import {
   addJobPhotoInput,
+  createCommissionRuleInput,
+  setCommissionRuleActiveInput,
+  setServiceAreaActiveInput,
+  updatePlatformSettingsInput,
+  upsertServiceAreaInput,
   advanceJobInput,
   cancelBookingInput,
   confirmCompletionInput,
@@ -133,6 +138,11 @@ export const callables = {
     stage: "bookings",
   }),
   cancelBooking: defineCallable({ name: "bookings-cancel", input: cancelBookingInput, output: mutationResult, stage: "bookings" }),
+  updatePlatformSettings: defineCallable({ name: "admin-updatePlatformSettings", input: updatePlatformSettingsInput, output: mutationResult, stage: "admin" }),
+  createCommissionRule: defineCallable({ name: "admin-createCommissionRule", input: createCommissionRuleInput, output: mutationResult, stage: "admin" }),
+  setCommissionRuleActive: defineCallable({ name: "admin-setCommissionRuleActive", input: setCommissionRuleActiveInput, output: mutationResult, stage: "admin" }),
+  upsertServiceArea: defineCallable({ name: "admin-upsertServiceArea", input: upsertServiceAreaInput, output: mutationResult, stage: "admin" }),
+  setServiceAreaActive: defineCallable({ name: "admin-setServiceAreaActive", input: setServiceAreaActiveInput, output: mutationResult, stage: "admin" }),
   reassignBooking: defineCallable({
     name: "admin-reassignBooking",
     input: reassignBookingInput,

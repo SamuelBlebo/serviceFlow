@@ -113,7 +113,7 @@ describe("deny by default", () => {
     // Bookings opened for participants and admins in Stage 7 (bookings.rules.test.ts).
     for (const db of [anon(), customer(), technician(), admin()]) {
       await assertFails(getDoc(doc(db, "wallets/tech1")));
-      await assertFails(getDoc(doc(db, "adminActions/a1")));
+      // adminActions became admin-readable in Stage 10 (see "admin-only reads").
       await assertFails(getDoc(doc(db, "someUnknownCollection/x")));
     }
   });
@@ -173,5 +173,17 @@ describe("auth internals are server-only", () => {
       await assertFails(getDoc(doc(db, "rateLimits/otp_ip_abc")));
       await assertFails(setDoc(doc(db, "rateLimits/otp_ip_abc"), { count: 0 }));
     }
+  });
+});
+
+describe("admin-only reads (Stage 10)", () => {
+  it("only admins read the audit log and commission rules; nobody writes them", async () => {
+    await assertSucceeds(getDoc(doc(admin(), "adminActions/a1")));
+    await assertSucceeds(getDoc(doc(admin(), "commissionRules/r1")));
+    for (const db of [anon(), customer(), technician()]) {
+      await assertFails(getDoc(doc(db, "adminActions/a1")));
+      await assertFails(getDoc(doc(db, "commissionRules/r1")));
+    }
+    await assertFails(setDoc(doc(admin(), "commissionRules/forged"), { scope: "GLOBAL", percent: 0, isActive: true }));
   });
 });
