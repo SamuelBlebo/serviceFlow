@@ -1,9 +1,11 @@
 import { formatGhanaPhoneForDisplay } from "@serviceflow/shared";
+import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../../src/auth/AuthProvider";
 import { PrimaryButton } from "../../src/auth/forms";
-import { ComingInStage, Screen } from "../../src/components/Screen";
+import { SecondaryButton } from "../../src/components/fields";
+import { Screen } from "../../src/components/Screen";
 import { NameForm } from "../../src/profile/NameForm";
 import { saveDisplayName, watchDisplayName } from "../../src/profile/account";
 import { colors, fontSize, radius, space } from "../../src/theme";
@@ -20,6 +22,7 @@ export default function ProfileScreen() {
 
   const phone = session.status === "signedIn" && session.phone ? formatGhanaPhoneForDisplay(session.phone) : null;
   const isTech = session.status === "signedIn" && session.capabilities.tech;
+  const router = useRouter();
 
   return (
     <Screen title="Profile">
@@ -32,11 +35,18 @@ export default function ProfileScreen() {
         <Text style={styles.label}>Phone number</Text>
         <Text style={styles.value}>{phone ?? "Unknown number"}</Text>
         <Text style={styles.label}>Account type</Text>
-        <Text style={styles.value}>{isTech ? "Service provider" : "Customer (provider registration coming soon)"}</Text>
+        <Text style={styles.value}>{isTech ? "Service provider" : "Customer"}</Text>
       </View>
-      <ComingInStage stage="Technician onboarding and verification">
-        Your skills, service areas, availability and verification.
-      </ComingInStage>
+      <View style={styles.links}>
+        {isTech ? (
+          <>
+            <SecondaryButton label="Services & availability" onPress={() => router.push("/tech/work")} />
+            <SecondaryButton label="Verification" onPress={() => router.push("/tech/verification")} />
+          </>
+        ) : (
+          <SecondaryButton label="Become a provider" onPress={() => router.push("/tech/register")} />
+        )}
+      </View>
       <PrimaryButton label="Sign out" onPress={() => void signOut()} />
     </Screen>
   );
@@ -53,5 +63,6 @@ const styles = StyleSheet.create({
   },
   label: { fontSize: fontSize.xs, color: colors.textSubtle, textTransform: "uppercase", marginTop: space[3] },
   value: { fontSize: fontSize.base, color: colors.text, fontWeight: "500" },
+  links: { gap: space[2] },
   muted: { fontSize: fontSize.sm, color: colors.textMuted },
 });

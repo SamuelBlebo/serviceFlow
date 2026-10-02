@@ -1,11 +1,52 @@
 rules_version = '2';
 
-// ServiceFlow Storage rules — Stage 2 (foundation).
-// Deny by default. Upload paths (SERVICEFLOW_MIGRATION_PLAN.md §8.5) are
-// opened one at a time in the stages that introduce them, each with
-// ownership, content-type and size checks.
+// ServiceFlow Storage rules (SERVICEFLOW_MIGRATION_PLAN.md §8.5).
+// Deny by default; each upload prefix is opened by the stage that needs it,
+// with ownership, content-type and size checks. Clients compress images
+// before upload (technicians are on limited mobile data).
+//
+// Open so far (Stage 6): technician profile photos and identity documents.
 service firebase.storage {
   match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn() && request.auth.token.admin == true;
+    }
+
+    // Owner, with the tech capability, and an ACTIVE account (checked in Firestore).
+    function isActiveTechnician(uid) {
+      return signedIn()
+        && request.auth.uid == uid
+        && request.auth.token.tech == true
+        && firestore.get(/databases/(default)/documents/users/$(uid)).data.status == "ACTIVE";
+    }
+
+    function isImageUnder(maxBytes) {
+      return request.resource.contentType.matches("image/.*") && request.resource.size <= maxBytes;
+    }
+
+    // Profile photos: shown on the technician's public profile.
+    match /technicians/{uid}/profile/{file} {
+      allow read: if signedIn();
+      allow create, update: if isActiveTechnician(uid) && isImageUnder(5 * 1024 * 1024);
+      allow delete: if isActiveTechnician(uid);
+    }
+
+    // Identity documents (Ghana Card / passport photo, selfie). Private:
+    // only the technician and admins can read them, they can be written once
+    // (never overwritten or deleted by a client) and never become public.
+    match /verifications/{uid}/{submissionId}/{file} {
+      allow read: if (signedIn() && request.auth.uid == uid) || isAdmin();
+      // `resource == null`: the object must not already exist (no overwriting
+      // documents that are under review or already reviewed).
+      allow create: if isActiveTechnician(uid) && resource == null && isImageUnder(8 * 1024 * 1024);
+      allow update, delete: if false;
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

@@ -6,8 +6,10 @@
 import { deleteApp, getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 
 export const PROJECT_ID = "demo-serviceflow";
+export const STORAGE_BUCKET = "demo-serviceflow.appspot.com";
 
 export function assertEmulators(): void {
   if (!process.env.FIRESTORE_EMULATOR_HOST || !process.env.FIREBASE_AUTH_EMULATOR_HOST) {
@@ -17,8 +19,8 @@ export function assertEmulators(): void {
 
 export function adminClients() {
   assertEmulators();
-  const app = getApps().find((a) => a.name === "integration") ?? initializeApp({ projectId: PROJECT_ID }, "integration");
-  return { app, auth: getAuth(app), db: getFirestore(app) };
+  const app = getApps().find((a) => a.name === "integration") ?? initializeApp({ projectId: PROJECT_ID, storageBucket: STORAGE_BUCKET }, "integration");
+  return { app, auth: getAuth(app), db: getFirestore(app), bucket: getStorage(app).bucket() };
 }
 
 /** Wipes all Firestore data and Auth users in the emulators between tests. */

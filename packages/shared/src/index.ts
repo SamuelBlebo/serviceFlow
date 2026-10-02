@@ -11,6 +11,7 @@ export * from "./time";
 export * from "./auth";
 export * from "./profile";
 export * from "./catalogue";
+export * from "./technician";
 
 export * from "./bookings/state-machine";
 

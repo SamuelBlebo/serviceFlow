@@ -1,6 +1,7 @@
 import { getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 
 /**
  * Single Admin SDK app per process. The Admin SDK bypasses Security Rules,
@@ -20,4 +21,9 @@ export function db() {
 
 export function adminAuth() {
   return getAuth(adminApp());
+}
+
+/** Default Storage bucket (uploads: profile photos, verification documents). */
+export function bucket() {
+  return getStorage(adminApp()).bucket();
 }

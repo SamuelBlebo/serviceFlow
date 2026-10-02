@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { BookingStatus, IdDocumentType, MobileMoneyNetwork, PaymentMethod, PreferredTime } from "../enums";
-import { availabilityWindow, serviceAreaCoverage } from "./documents";
+import { availabilityWindow } from "./documents";
 import { SERVICE_LIMITS, slugify } from "../catalogue";
 import { PROFILE_LIMITS, normalizeGhanaPostGps } from "../profile";
+import { ReviewDecision, TECHNICIAN_LIMITS, hasOverlappingWindows, normalizeIdNumber } from "../technician";
 import { docId, ghanaPhone, latLng, minorAmount, optionalInput, personName, requestId } from "./primitives";
 
 /**
@@ -22,26 +23,79 @@ export type HealthOutput = z.infer<typeof healthOutput>;
 
 // ── Technicians (Stage: onboarding & verification) ──────────────────────
 
+const uniqueIds = (max: number, what: string) =>
+  z
+    .array(docId)
+    .min(1, `Choose at least one ${what}`)
+    .max(max, `Choose at most ${max} ${what}s`)
+    .refine((ids) => new Set(ids).size === ids.length, { message: `Each ${what} can only be chosen once` });
+
+/** Become a service provider: grants the `tech` capability and creates the profile + wallet. */
 export const registerTechnicianInput = z.object({
   requestId,
-  displayName: z.string().min(2).max(80),
-  yearsExperience: z.number().int().min(0).max(60).default(0),
+  displayName: personName,
+  yearsExperience: z.number().int().min(0).max(TECHNICIAN_LIMITS.yearsMax),
 });
+export type RegisterTechnicianInput = z.input<typeof registerTechnicianInput>;
 
+/**
+ * What a technician offers and where/when. Areas are catalogue ids: the
+ * server copies their coordinates and radius, so clients can't place a
+ * technician anywhere they like.
+ */
 export const updateTechnicianServicesInput = z.object({
   requestId,
-  serviceIds: z.array(docId).min(1).max(20),
-  serviceAreas: z.array(serviceAreaCoverage).min(1).max(10),
-  weeklyAvailability: optionalInput(z.array(availabilityWindow).max(14)),
+  serviceIds: uniqueIds(TECHNICIAN_LIMITS.maxServices, "service"),
+  areaIds: uniqueIds(TECHNICIAN_LIMITS.maxAreas, "area"),
+  weeklyAvailability: z
+    .array(availabilityWindow)
+    .min(1, "Add at least one working period")
+    .max(TECHNICIAN_LIMITS.maxWindows)
+    .refine((w) => !hasOverlappingWindows(w), { message: "Working periods on the same day can't overlap" }),
 });
+export type UpdateTechnicianServicesInput = z.input<typeof updateTechnicianServicesInput>;
 
-export const submitVerificationInput = z.object({
-  requestId,
-  idType: z.enum(IdDocumentType),
-  idNumber: z.string().trim().min(4).max(40),
-  idPhotoPath: z.string().min(1),
-  selfiePath: optionalInput(z.string().min(1)),
-});
+/**
+ * Submit identity documents for review. Both images must already be uploaded
+ * to the technician's private folder `verifications/{uid}/{submissionId}/`;
+ * the server checks they exist, are images and are within the size limit.
+ */
+export const submitVerificationInput = z
+  .object({
+    requestId,
+    submissionId: docId,
+    idType: z.enum(IdDocumentType),
+    idNumber: z.string().trim().min(4).max(40),
+    idPhotoPath: z.string().min(1),
+    selfiePath: z.string().min(1),
+  })
+  .transform((v, ctx) => {
+    const idNumber = normalizeIdNumber(v.idType, v.idNumber);
+    if (!idNumber) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["idNumber"],
+        message: v.idType === "GHANA_CARD" ? "Enter your Ghana Card number like GHA-123456789-0" : "Check the ID number",
+      });
+      return z.NEVER;
+    }
+    return { ...v, idNumber };
+  });
+export type SubmitVerificationInput = z.input<typeof submitVerificationInput>;
+
+/** Admin decision on a technician. A reason is required for REJECT and SUSPEND. */
+export const reviewTechnicianInput = z
+  .object({
+    requestId,
+    technicianId: docId,
+    decision: z.enum(ReviewDecision),
+    notes: optionalInput(z.string().trim().max(TECHNICIAN_LIMITS.reviewNotesMax)),
+  })
+  .refine((v) => (v.decision !== "REJECT" && v.decision !== "SUSPEND") || (v.notes?.length ?? 0) >= 5, {
+    message: "Explain the reason (the technician will see it)",
+    path: ["notes"],
+  });
+export type ReviewTechnicianInput = z.input<typeof reviewTechnicianInput>;
 
 // ── Bookings ─────────────────────────────────────────────────────────────
 

@@ -17,7 +17,7 @@ Legend: ⬜ not started · 🟨 partially replaced (pure logic ported, service n
 | `modules/auth/*` (JWT, OTP) (+ `jwt.test.ts`) | `auth-requestOtp` / `auth-verifyOtp` + Firebase Auth | 3 JWT tests → OTP + custom-token integration tests (sign-in proven with the client SDK) | 🟨 replacement complete (Stage 3). Removal deferred for the same reason |
 | `app.test.ts` (HTTP) | callable/rules tests | health, validation, 401/403 cases → `health.test.ts`, `guards.test.ts`, rules tests | 🟨 equivalents exist |
 | `modules/services/*` | `services` collection + `admin-upsertService` / `admin-setServiceActive` (Stage 5) | — (legacy had no service tests) → 13 catalogue integration tests | 🟨 replacement complete. Removal deferred: the legacy WhatsApp bot still reads services through Prisma until the WhatsApp stage |
-| `modules/technicians/*` | `technicians` + verification callables | — | ⬜ Technician onboarding stage |
+| `modules/technicians/*` | `technicians` + `technicians-register` / `-updateServices` / `-submitVerification` and `admin-reviewTechnician` (Stage 6) | — (legacy had no technician tests) → 14 domain integration tests + 1 HTTP auth test, 10 technician Firestore rules tests, 8 Storage rules tests | 🟨 replacement complete. Removal deferred: legacy bookings, matching and the WhatsApp bot read technicians through Prisma until their stages |
 | `modules/bookings/bookings.service.ts` | booking domain service + callables | — | ⬜ Bookings stage |
 | `modules/ratings/ratings.service.ts` | `ratings-submit` callable | — | ⬜ Bookings/Ratings stage |
 | `packages/shared/src/{phone,geo,errors}.ts` | unchanged (already shared) | 15 tests kept | ✅ nothing to remove |
@@ -25,4 +25,4 @@ Legend: ⬜ not started · 🟨 partially replaced (pure logic ported, service n
 | `packages/database` (Prisma) | Firestore data model (§8) | — | ⬜ last |
 | `scripts/bootstrap-admin.ts` | `apps/functions/src/scripts/bootstrap-admin.ts` (emulator-only until a real project exists) | — | 🟨 replacement built (Stage 3); legacy copy removed with the legacy API |
 
-Legacy defects D-1…D-16 (SERVICEFLOW_MIGRATION_PLAN.md §5.14) are fixed in the replacements, not back-ported. Fixed so far: D-10 (no user suspension) and D-16 (Math.random OTP; accounts created on code request) in Stage 3; D-17 (typecheck error) in Stage 2.
+Legacy defects D-1…D-16 (SERVICEFLOW_MIGRATION_PLAN.md §5.14) are fixed in the replacements, not back-ported. Fixed so far: D-10 (no user suspension) and D-16 (Math.random OTP; accounts created on code request) in Stage 3; D-9 (verification resubmission reset any status to PENDING) and D-15 (verification "uploads" were arbitrary client URLs) in Stage 6; D-17 (typecheck error) in Stage 2.

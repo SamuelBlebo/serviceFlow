@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Status | **Stage 5 (Services) complete (2026-10-01). Stage 6 not started.** Stage records: §20.5 (Stage 2), §21 (Stage 3), §22 (Stage 4), §23 (Stage 5). |
+| Status | **Stage 6 (Technician onboarding and verification) complete (2026-10-01). Stage 7 not started.** Stage records: §20.5 (Stage 2), §21 (Stage 3), §22 (Stage 4), §23 (Stage 5), §24 (Stage 6). |
 | Date | 2026-09-30 |
 | Audited commit | `effae03` (main): "Initial commit: Home Service backend + WhatsApp booking slice" |
 | Scope | Audit and blueprint only. No code, data, Firebase or deployment changes were made |
@@ -1673,3 +1673,43 @@ Stage 4 was committed as `9953560` on `stage-4-profiles`. Stage 5 is on `stage-5
 - Technicians selecting services (Technician onboarding).
 - Commission rules per service (Payments).
 - Removing the legacy services module: deferred, because the legacy WhatsApp bot still reads services through Prisma.
+
+## 24. Stage 6: Technician onboarding and verification (2026-10-01)
+
+Stage 5 was committed as `900c04f` on `stage-5-services`. Stage 6 is on `stage-6-technicians`.
+
+### Scope delivered
+
+| Area | Delivered |
+| --- | --- |
+| Shared | `technician.ts`: verification state machine with actors (`assertVerificationTransition`, `canSubmitVerification`, `canGoOnline`), review decisions, Ghana Card normalization (`GHA-123456789-0`) and other ID formats, limits, default hours, overlap check. Callable schemas `registerTechnicianInput`, `updateTechnicianServicesInput`, `submitVerificationInput`, `reviewTechnicianInput` |
+| Callables | `technicians-register` (technician + wallet docs, `tech` claim with existing claims preserved, idempotent), `technicians-updateServices` (active services/areas only; area coordinates copied from the catalogue), `technicians-submitVerification` (files must exist in the caller's private submission folder, be images ≤ 8 MB, and differ; idempotent per submission), `admin-reviewTechnician` (admin + active + recent sign-in, no self-review, reason required to reject/suspend, audited, forces offline unless verified) |
+| Firestore rules | `technicians`: readable when signed in; owner may change only bio, experience, own profile photo path, `isOnline` (true only while VERIFIED) and `updatedAt`. `technicianVerifications`: owner and admins read, no client writes |
+| Storage rules | Rewritten deny-by-default. Profile photos: public to signed-in users, written by the active technician (image ≤ 5 MB). Verification documents: create-only by the active owner (image ≤ 8 MB, no overwrite or delete), readable only by the owner and admins |
+| Web | `/become-a-provider`, `/tech/register` (claim refreshed immediately), provider dashboard (status, checklist, online switch), services/areas/hours, verification (compressed uploads, status, rejection reason, history), provider profile; admin verification queue with the private photos and a technicians list with suspend/reinstate. All lazy-loaded; first-load chunk still 69 KB gzipped |
+| Mobile | Home shows "Become a provider", the onboarding checklist, or the online switch (only when verified). `app/tech/register`, `work` (service/area chips, per-day hours), `verification` (camera/gallery via `expo-image-picker`, front camera for the selfie, ≤1600 px JPEG compression via `expo-image-manipulator`, `putFile` upload to Storage). Profile links to the provider screens. Added `@react-native-firebase/storage`, `expo-image-picker` (with permission strings), `expo-image-manipulator` at SDK 57 versions |
+
+### Verified results
+
+| Check | Result |
+| --- | --- |
+| `pnpm install --frozen-lockfile` | OK |
+| `pnpm typecheck` | 8/8 packages |
+| `pnpm test` | 393 pass: shared 169, firebase 13, functions 42, web 93, mobile 31, legacy API 45 (unchanged) |
+| `pnpm test:rules` | 57 pass (10 new technician rules tests; Storage rules tests rewritten, 8) |
+| `pnpm test:integration` | 53 pass (14 technician domain tests + HTTP auth checks; now runs with the Storage emulator) |
+| `pnpm build` | OK; web first-load chunk 69 KB gzipped, technician store 8.8 KB gzipped (lazy) |
+| Mobile | `expo install --check` up to date; `expo export` Android bundle OK; config plugin applies camera/photo permission strings |
+| Browser end to end | Technician onboarding 15/15 (register → services/areas → real ID + selfie uploads → admin views private photos and approves → technician goes online), profiles 14/14, services 12/12, auth 14/14 |
+
+### Found and fixed during the stage
+
+- **Verification files could be overwritten after submission.** The first Storage rule allowed a second write to the same path, so a technician could swap a photo after an admin had seen it. A rules test caught it; documents are now create-only (`resource == null`).
+- Legacy defects fixed in the replacement: **D-9** (any status could resubmit and reset to PENDING) and **D-15** (verification "uploads" were arbitrary client-supplied URLs).
+
+### Not in this stage
+
+- Running the mobile app on a device or emulator (no Android SDK/JDK-based native build in this environment); mobile is verified by component tests, typecheck and the Metro bundle.
+- Technician profile photo on mobile (web supports it; mobile edits arrive with the technician mobile workflow).
+- Push notifications on review decisions (Notifications stage).
+- Removing the legacy technicians module: deferred, because legacy bookings, matching and the WhatsApp bot read technicians through Prisma.

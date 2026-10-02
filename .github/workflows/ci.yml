@@ -42,7 +42,7 @@ jobs:
       - name: Security rules tests (Firestore + Storage emulators)
         run: pnpm test:rules
 
-      - name: Functions integration tests (Auth + Firestore + Functions emulators)
+      - name: Functions integration tests (Auth + Firestore + Functions + Storage emulators)
         run: pnpm test:integration
 
       - name: Build web + bundle Cloud Functions

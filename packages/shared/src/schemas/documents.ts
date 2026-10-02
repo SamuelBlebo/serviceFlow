@@ -108,7 +108,12 @@ export const technicianDoc = z.object({
   verificationStatus: z.enum(VerificationStatus),
   stats: technicianStats,
   activeBookingId: docId.nullable(),
+  /** Id of the most recent technicianVerifications submission (server-maintained). */
+  latestVerificationId: docId.nullable().optional(),
+  /** Lowercase name tokens for admin search (server-maintained). */
+  searchKeywords: z.array(z.string()).optional(),
   createdAt: timestampLike,
+  updatedAt: timestampLike.optional(),
 });
 export type TechnicianDoc = z.infer<typeof technicianDoc>;
 
@@ -118,6 +123,7 @@ export const technicianVerificationDoc = z.object({
   idNumber: z.string().min(4).max(40),
   idPhotoPath: z.string(),
   selfiePath: z.string().nullable(),
+  /** Status of THIS submission: PENDING, then VERIFIED or REJECTED. */
   status: z.enum(VerificationStatus),
   reviewNotes: z.string().nullable(),
   reviewedBy: docId.nullable(),
