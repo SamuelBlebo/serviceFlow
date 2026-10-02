@@ -111,6 +111,15 @@ Phone (customer / technician)                         Admin
 - **Location** is captured once at "on my way" (`expo-location`, foreground, last known fix if recent) and stored as `enRouteLocation`; refusing permission never blocks the step. No background tracking.
 - **Job photos**: before photos from ARRIVED, after photos from IN_PROGRESS (`canAddJobPhoto`). The app compresses (≤1600 px JPEG), uploads to `bookings/{id}/{BEFORE|AFTER}/` — Storage rules: only the assigned technician, only in those statuses, create-only, image ≤ 8 MB; participants and admins can read — then `bookings-addJobPhoto` checks the file exists, is an image within the limit and is in that booking's folder, and records `bookings/{id}/media/{hash(path)}` (idempotent, at most 10 per job). Customers and admins see the photos and completion notes on the web booking pages.
 
+## Web dashboards (Stage 10)
+
+- **Admin home**: headline numbers from Firestore count queries (bookings today, waiting for a technician, jobs in progress, technicians online, verifications to review; refreshed every minute) and a live list of bookings waiting or in progress.
+- **People**: customers list (search by name) and detail (phone, addresses, bookings, account status); technician detail (stats incl. completion and response rates, verification history, jobs, verification suspend/reinstate). Account suspension/reactivation uses the Stage 3 callables (recent sign-in, audited) — now with a web UI.
+- **Audit log** (`/admin/audit`): `adminActions`, newest first, filtered by target type and searchable, with before → after for every changed field. Rules: admins read, nobody writes from a client.
+- **Settings** (`/admin/settings`): platform settings (default commission, offer time, matching time, search radius, support phone), commission rules (create; switch on/off — rules are never edited) and service areas (create/edit inside Ghana's bounds; hide/show). New callables `admin-updatePlatformSettings`, `admin-createCommissionRule`, `admin-setCommissionRuleActive` (all three need a recent sign-in: they affect money), `admin-upsertServiceArea`, `admin-setServiceAreaActive` — each one transaction with its audit entry, idempotent per request, values bounded by shared `SETTINGS_LIMITS`.
+- **Technician web**: `/tech/jobs` and `/tech/jobs/:id` with the same rules as the mobile app (offer countdown, one next step, quote, contact after acceptance, Google Maps directions link, cancel); photos stay on mobile. The provider dashboard shows the current job and new requests.
+- **Public**: How it works, About, Contact. Remaining placeholders (payments, payouts, disputes, reports, earnings, wallet, reviews) name the stage that builds them.
+
 ## Cloud Functions build
 
 `firebase.json` points Functions at `apps/functions/dist`, produced by `apps/functions/scripts/build.mjs`: an esbuild bundle (inlining `@serviceflow/*` and zod) plus a generated `package.json` listing only `firebase-admin` and `firebase-functions`. This avoids `workspace:*` dependencies breaking the cloud `npm install`. `src/lib/global-options.ts` must stay the first import in `src/index.ts` so region and instance limits apply to every function.
@@ -125,6 +134,7 @@ Phone (customer / technician)                         Admin
 ## Stage log
 
 - **Stage 2 — Foundation**: monorepo, shared domain packages, Firebase config (deny-by-default rules, indexes), Functions skeleton with health checks and seed, web and mobile shells reading live services.
+- **Stage 10 — Web dashboards**: admin home/KPIs, customers, technician detail, audit log, settings (platform, commission rules, service areas via audited callables), technician web jobs, public information pages.
 - **Stage 9 — Technician mobile workflow**: Jobs tab, job screen with countdown and one primary action, quote, call/navigate, one-time location, before/after photos (Storage rules + callable), completion notes, web display of the job record.
 - **Stage 8 — Matching**: matching on create, customer choice among stored candidates, re-search, offer and matching expiry sweep, candidate pickers on web and mobile.
 - **Stage 7 — Bookings**: server-only booking state machine with history and idempotency receipts, create/cancel/offer response/job steps/quote/confirm callables, admin reassign and price override, booking rules, customer booking pages (web + mobile) and admin bookings.

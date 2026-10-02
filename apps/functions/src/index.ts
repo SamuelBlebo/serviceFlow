@@ -8,7 +8,8 @@
  * administration (Stage 3), service catalogue administration (Stage 5),
  * technician onboarding and verification review (Stage 6), the booking
  * lifecycle and price agreement (Stage 7), matching, technician choice and
- * the expiry sweep (Stage 8), job photos and completion notes (Stage 9).
+ * the expiry sweep (Stage 8), job photos and completion notes (Stage 9),
+ * platform settings, commission rules and service areas (Stage 10).
  * Further callables, webhooks, triggers and
  * schedulers are added stage by stage — see SERVICEFLOW_MIGRATION_PLAN.md.
  */
@@ -31,6 +32,13 @@ import {
 } from "./adapters/callables/bookings";
 import { requestOtp, verifyOtp } from "./adapters/callables/auth";
 import { setServiceActive, upsertService } from "./adapters/callables/catalogue";
+import {
+  createCommissionRule,
+  setCommissionRuleActive,
+  setServiceAreaActive,
+  updatePlatformSettings,
+  upsertServiceArea,
+} from "./adapters/callables/settings";
 import { health } from "./adapters/callables/health";
 import { register, reviewTechnician, submitVerificationCallable, updateServices } from "./adapters/callables/technicians";
 import { status } from "./adapters/http/status";
@@ -46,6 +54,11 @@ export const admin = {
   reviewTechnician,
   reassignBooking: reassignBookingCallable,
   setBookingPrice: setBookingPriceCallable,
+  updatePlatformSettings,
+  createCommissionRule,
+  setCommissionRuleActive,
+  upsertServiceArea,
+  setServiceAreaActive,
 };
 export const technicians = { register, updateServices, submitVerification: submitVerificationCallable };
 export const bookings = {
