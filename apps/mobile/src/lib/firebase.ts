@@ -2,6 +2,7 @@ import { getApp } from "@react-native-firebase/app";
 import { type Auth, connectAuthEmulator, getAuth } from "@react-native-firebase/auth";
 import { connectFirestoreEmulator, getFirestore, type Firestore } from "@react-native-firebase/firestore";
 import { connectFunctionsEmulator, type Functions, getFunctions } from "@react-native-firebase/functions";
+import { connectStorageEmulator, type FirebaseStorage, getStorage } from "@react-native-firebase/storage";
 import { Platform } from "react-native";
 
 /**
@@ -26,6 +27,7 @@ export function emulatorHost(): string {
 let firestoreInstance: Firestore | null = null;
 let authInstance: Auth | null = null;
 let functionsInstance: Functions | null = null;
+let storageInstance: FirebaseStorage | null = null;
 
 export function db(): Firestore {
   if (firestoreInstance) return firestoreInstance;
@@ -46,4 +48,11 @@ export function functions(): Functions {
   functionsInstance = getFunctions(getApp(), FUNCTIONS_REGION);
   if (USE_EMULATORS) connectFunctionsEmulator(functionsInstance, emulatorHost(), 5001);
   return functionsInstance;
+}
+
+export function storage(): FirebaseStorage {
+  if (storageInstance) return storageInstance;
+  storageInstance = getStorage();
+  if (USE_EMULATORS) connectStorageEmulator(storageInstance, emulatorHost(), 9199);
+  return storageInstance;
 }

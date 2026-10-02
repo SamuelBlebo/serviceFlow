@@ -64,3 +64,12 @@ export async function signInAdmin(email: string, password: string): Promise<Capa
 export async function signOutUser(): Promise<void> {
   await signOut(auth());
 }
+
+/**
+ * Forces a fresh ID token so new custom claims (e.g. `tech` right after
+ * registering as a provider) take effect immediately. onIdTokenChanged then
+ * updates the session.
+ */
+export async function refreshSession(): Promise<void> {
+  await auth().currentUser?.getIdToken(true);
+}

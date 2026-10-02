@@ -38,6 +38,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-router",
     "@react-native-firebase/app",
     [
+      "expo-image-picker",
+      {
+        cameraPermission: "ServiceFlow uses your camera to photograph your ID and take a selfie for provider verification.",
+        photosPermission: "ServiceFlow lets you choose a photo of your ID from your gallery for provider verification.",
+        microphonePermission: false,
+      },
+    ],
+    [
       "expo-build-properties",
       {
         // Required by React Native Firebase on iOS.

@@ -20,8 +20,19 @@ const WelcomePage = lazyNamed(() => import("../pages/customer/WelcomePage"), "We
 const CustomerHome = lazyNamed(() => import("../pages/customer/CustomerHome"), "CustomerHome");
 const ProfilePage = lazyNamed(() => import("../pages/customer/ProfilePage"), "ProfilePage");
 const AdminServicesPage = lazyNamed(() => import("../pages/admin/AdminServicesPage"), "AdminServicesPage");
+const loadAdminTech = () => import("../pages/admin/AdminTechnicianPages");
+const AdminVerificationPage = lazyNamed(loadAdminTech, "AdminVerificationPage");
+const AdminTechniciansPage = lazyNamed(loadAdminTech, "AdminTechniciansPage");
+const TechnicianProvider = lazyNamed(() => import("../lib/technician/TechnicianProvider"), "TechnicianProvider");
+const TechRegisterPage = lazyNamed(() => import("../pages/tech/TechRegisterPage"), "TechRegisterPage");
+const TechDashboard = lazyNamed(() => import("../pages/tech/TechDashboard"), "TechDashboard");
+const loadTechSettings = () => import("../pages/tech/TechSettingsPages");
+const TechAvailabilityPage = lazyNamed(loadTechSettings, "TechAvailabilityPage");
+const TechProfilePage = lazyNamed(loadTechSettings, "TechProfilePage");
+const TechVerificationPage = lazyNamed(() => import("../pages/tech/TechVerificationPage"), "TechVerificationPage");
 
 const withSuspense = (node: ReactNode) => <Suspense fallback={<FullPageSpinner />}>{node}</Suspense>;
+import { BecomeProviderPage } from "../pages/public/BecomeProviderPage";
 import { NotFoundPage, PlaceholderPage } from "../pages/public/PlaceholderPage";
 import { ServiceDetailPage, ServicesPage } from "../pages/public/ServicesPages";
 import { ADMIN_AREA_IDLE_TIMEOUT_MS, AreaHome, AreaLayout, type AreaNavItem } from "./layouts/AreaLayout";
@@ -42,7 +53,7 @@ const CUSTOMER_NAV: AreaNavItem[] = [
 const TECH_NAV: AreaNavItem[] = [
   { to: "/tech", label: "Dashboard" },
   { to: "/tech/jobs", label: "Jobs" },
-  { to: "/tech/availability", label: "Availability" },
+  { to: "/tech/availability", label: "Services & availability" },
   { to: "/tech/earnings", label: "Earnings" },
   { to: "/tech/wallet", label: "Wallet" },
   { to: "/tech/payouts", label: "Payouts" },
@@ -85,14 +96,7 @@ export const routes = [
       { path: "services", element: <ServicesPage /> },
       { path: "services/:slug", element: <ServiceDetailPage /> },
       { path: "how-it-works", element: <PlaceholderPage title="How it works" stage="Web dashboards" /> },
-      {
-        path: "become-a-provider",
-        element: (
-          <PlaceholderPage title="Become a provider" stage="Technician onboarding">
-            Join ServiceFlow as a verified professional and get jobs near you.
-          </PlaceholderPage>
-        ),
-      },
+      { path: "become-a-provider", element: <BecomeProviderPage /> },
       { path: "about", element: <PlaceholderPage title="About ServiceFlow" stage="Web dashboards" /> },
       { path: "contact", element: <PlaceholderPage title="Contact us" stage="Web dashboards" /> },
       { path: "login", element: <PhoneLoginPage /> },
@@ -132,15 +136,33 @@ export const routes = [
     ],
   },
   {
+    // Registration is for signed-in users who are not providers yet, so it
+    // sits outside the tech-capability gate.
+    path: "tech/register",
+    element: <RequireAuth>{withSuspense(<TechRegisterPage />)}</RequireAuth>,
+  },
+  {
     path: "tech",
     element: (
       <RequireAuth>
         <RequireCapability capability="tech">
-          <AreaLayout areaName="Service provider" nav={TECH_NAV} />
+          {withSuspense(
+            <TechnicianProvider>
+              <AreaLayout areaName="Service provider" nav={TECH_NAV} />
+            </TechnicianProvider>,
+          )}
         </RequireCapability>
       </RequireAuth>
     ),
-    children: areaRoutes(TECH_NAV, "/tech", "Service provider", "Technician onboarding"),
+    children: [
+      { index: true, element: withSuspense(<TechDashboard />) },
+      { path: "availability", element: withSuspense(<TechAvailabilityPage />) },
+      { path: "verification", element: withSuspense(<TechVerificationPage />) },
+      { path: "profile", element: withSuspense(<TechProfilePage />) },
+      ...areaRoutes(TECH_NAV, "/tech", "Service provider", "Technician mobile workflow").filter(
+        (r) => "path" in r && !["availability", "verification", "profile"].includes(r.path ?? ""),
+      ),
+    ],
   },
   {
     path: "admin",
@@ -153,7 +175,11 @@ export const routes = [
     ),
     children: [
       { path: "services", element: withSuspense(<AdminServicesPage />) },
-      ...areaRoutes(ADMIN_NAV, "/admin", "Admin", "Web dashboards").filter((r) => !("path" in r) || r.path !== "services"),
+      { path: "verification", element: withSuspense(<AdminVerificationPage />) },
+      { path: "technicians", element: withSuspense(<AdminTechniciansPage />) },
+      ...areaRoutes(ADMIN_NAV, "/admin", "Admin", "Web dashboards").filter(
+        (r) => !("path" in r) || !["services", "verification", "technicians"].includes(r.path ?? ""),
+      ),
     ],
   },
 ];

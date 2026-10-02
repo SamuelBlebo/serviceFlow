@@ -76,6 +76,15 @@ Phone (customer / technician)                         Admin
 - The id is the slug (`home-cleaning`), fixed at creation; names are unique case-insensitively (`nameKey`); prices are pesewas with min ≤ max; services are hidden, never deleted. Rules keep catalogue writes server-only and hide inactive services from everyone but admins.
 - **Callable inputs and `null`**: the Firebase callable SDKs serialise `undefined` as `null`. Every optional callable field uses `optionalInput()` (shared), which treats `null` as absent — required for any client, including WhatsApp later.
 
+## Technician onboarding and verification (Stage 6)
+
+- **Becoming a provider** is a callable (`technicians-register`): one transaction creates `technicians/{uid}` (UNSUBMITTED) and `wallets/{uid}` and records the capability on `users/{uid}`, then the `tech` custom claim is set (existing claims preserved). Clients force an ID-token refresh so the provider area opens immediately. Idempotent.
+- **Services, areas and hours** go through `technicians-updateServices`: services and areas must exist and be active, and area coordinates/radius are copied from the catalogue, so a client can't place a technician anywhere. Hours are validated (HH:MM, end after start, no overlaps).
+- **Verification**: the client compresses the ID photo and selfie (≤1600 px JPEG) and uploads them to `verifications/{uid}/{submissionId}/` in Storage — create-only, owner (active technician) only, image ≤ 8 MB, readable only by the owner and admins. `technicians-submitVerification` checks both files exist in that folder, are images and within the limit, normalizes the ID number (Ghana Card → `GHA-123456789-0`) and moves the technician to PENDING. The doc id `{uid}_{submissionId}` makes retries idempotent.
+- **State machine** (shared `technician.ts`): UNSUBMITTED/REJECTED → PENDING (technician); PENDING → VERIFIED/REJECTED, VERIFIED ⇄ SUSPENDED (admin). `admin-reviewTechnician` requires the admin claim, an active account and a **recent sign-in**, forbids self-review, needs a reason to reject or suspend, writes the audit entry, and forces `isOnline = false` for any non-verified outcome.
+- **Direct owner writes** to `technicians/{uid}` are limited by rules to `bio`, `yearsExperience`, `photoPath` (own profile folder), `isOnline` and `updatedAt` — and `isOnline` can be true only while VERIFIED. Verification status, services, areas and stats are server-only.
+- Web: `/become-a-provider` → `/tech/register` → `/tech` (status + checklist + online switch), `/tech/availability`, `/tech/verification`, `/tech/profile`; admin `/admin/verification` (queue with the private photos) and `/admin/technicians`. Mobile: the same flow under `app/tech/*` with camera/gallery capture (`expo-image-picker`), on-device compression (`expo-image-manipulator`) and `putFile` uploads; the Home online switch exists only once verified.
+
 ## Cloud Functions build
 
 `firebase.json` points Functions at `apps/functions/dist`, produced by `apps/functions/scripts/build.mjs`: an esbuild bundle (inlining `@serviceflow/*` and zod) plus a generated `package.json` listing only `firebase-admin` and `firebase-functions`. This avoids `workspace:*` dependencies breaking the cloud `npm install`. `src/lib/global-options.ts` must stay the first import in `src/index.ts` so region and instance limits apply to every function.
@@ -90,6 +99,7 @@ Phone (customer / technician)                         Admin
 ## Stage log
 
 - **Stage 2 — Foundation**: monorepo, shared domain packages, Firebase config (deny-by-default rules, indexes), Functions skeleton with health checks and seed, web and mobile shells reading live services.
+- **Stage 6 — Technician onboarding and verification**: register/services/verification/review callables, Storage rules for private ID documents, technician rules, web provider + admin review pages, mobile onboarding with photo capture and compression.
 - **Stage 5 — Services**: audited admin catalogue callables, admin services page, public services list and detail pages, null-tolerant optional callable inputs.
 - **Stage 4 — Users and profiles**: customer profiles and saved addresses (rules-validated client writes), welcome step, profile page, mobile display-name editing.
 - **Stage 3 — Authentication**: custom phone OTP → custom token, admin email/password, account records, suspension with audit, `users` rules, web + mobile sign-in, Functions integration tests on the emulators.

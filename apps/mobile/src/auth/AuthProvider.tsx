@@ -12,6 +12,8 @@ interface AuthContextValue {
   session: SessionState;
   signInWithToken(token: string): Promise<void>;
   signOut(): Promise<void>;
+  /** Fetches a fresh ID token so new capability claims (e.g. tech) apply now. */
+  refreshSession(): Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -49,6 +51,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await signInWithCustomToken(auth(), token);
       },
       signOut: () => signOut(auth()),
+      refreshSession: async () => {
+        await auth().currentUser?.getIdToken(true);
+      },
     }),
     [session],
   );

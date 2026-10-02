@@ -145,3 +145,33 @@ describe("optional fields sent as undefined by the client SDK (Stage 5 regressio
     expect(result.data).toEqual({ ok: true, id: "home-cleaning" });
   });
 });
+
+describe("technician callables over HTTP", () => {
+  const register = fn<Record<string, unknown>, { ok: true; id: string }>(callables.registerTechnician.name);
+  const updateServices = fn<Record<string, unknown>, { ok: true; id: string }>(callables.updateTechnicianServices.name);
+  const review = fn<Record<string, unknown>, { ok: true; id: string }>(callables.reviewTechnician.name);
+
+  async function signInAsCustomer(uid: string) {
+    await admin.auth.createUser({ uid });
+    await admin.db.doc(`users/${uid}`).set({ status: UserStatus.ACTIVE, capabilities: { tech: false, admin: false }, displayName: "", createdAt: FieldValue.serverTimestamp() });
+    await signInWithCustomToken(getAuth(app), await admin.auth.createCustomToken(uid));
+  }
+
+  it("registration grants the tech claim, visible after a token refresh", async () => {
+    await signInAsCustomer("cust-tech-1");
+    await expect(register({ requestId: "req_http_register_1", displayName: "Yaw Mensah", yearsExperience: 3 })).resolves.toMatchObject({
+      data: { ok: true, id: "cust-tech-1" },
+    });
+    const token = await getAuth(app).currentUser?.getIdTokenResult(true);
+    expect(token?.claims.tech).toBe(true);
+  });
+
+  it("only technicians can update services, and only admins can review", async () => {
+    await signInAsCustomer("cust-tech-2");
+    const services = { requestId: "req_http_services_1", serviceIds: ["plumbing"], areaIds: ["osu"], weeklyAvailability: [{ day: 1, start: "08:00", end: "17:00" }] };
+    expect((await failure(updateServices(services))).code).toBe("functions/permission-denied");
+    expect((await failure(review({ requestId: "req_http_review_1", technicianId: "x", decision: "APPROVE" }))).code).toBe(
+      "functions/permission-denied",
+    );
+  });
+});

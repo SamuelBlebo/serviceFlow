@@ -19,6 +19,7 @@ export function fakeActions(overrides: Partial<AuthActions> = {}): AuthActions {
     signInWithToken: vi.fn(async () => undefined),
     signInAdmin: vi.fn(async () => ({ tech: false, admin: true })),
     signOut: vi.fn(async () => undefined),
+    refreshSession: vi.fn(async () => undefined),
     ...overrides,
   };
 }

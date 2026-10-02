@@ -7,6 +7,7 @@ import {
   initiatePaymentInput,
   registerTechnicianInput,
   requestOtpInput,
+  reviewTechnicianInput,
   setServiceActiveInput,
   upsertServiceInput,
   requestOtpOutput,
@@ -31,7 +32,8 @@ import { z } from "zod";
  *
  * `stage` records when each callable is implemented. Implemented so far:
  * `health` (Stage 2), the `auth`/`admin` callables (Stage 3) and the
- * service-catalogue callables (Stage 5). The rest are
+ * service-catalogue callables (Stage 5), technician onboarding and review
+ * (Stage 6). The rest are
  * declared so the contract is fixed before building.
  */
 
@@ -64,6 +66,12 @@ export const callables = {
     stage: "admin",
   }),
   upsertService: defineCallable({ name: "admin-upsertService", input: upsertServiceInput, output: mutationResult, stage: "services" }),
+  reviewTechnician: defineCallable({
+    name: "admin-reviewTechnician",
+    input: reviewTechnicianInput,
+    output: mutationResult,
+    stage: "technicians",
+  }),
   setServiceActive: defineCallable({
     name: "admin-setServiceActive",
     input: setServiceActiveInput,

@@ -11,6 +11,8 @@ export interface AuthActions {
   signInWithToken(token: string): Promise<void>;
   signInAdmin(email: string, password: string): Promise<Capabilities>;
   signOut(): Promise<void>;
+  /** Re-reads custom claims (after registering as a provider). */
+  refreshSession(): Promise<void>;
 }
 
 export interface AuthContextValue {
@@ -54,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInWithToken: async (token) => (await loadSession()).signInWithToken(token),
       signInAdmin: async (email, password) => (await loadSession()).signInAdmin(email, password),
       signOut: async () => (await loadSession()).signOutUser(),
+      refreshSession: async () => (await loadSession()).refreshSession(),
     }),
     [],
   );

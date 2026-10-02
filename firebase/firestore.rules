@@ -12,7 +12,8 @@ rules_version = '2';
 //
 // Open so far: the public service and service-area catalogues and platform
 // settings (Stage 2); account documents (Stage 3); customer profiles and
-// saved addresses (Stage 4). Every other collection —
+// saved addresses (Stage 4); technician profiles and verification records
+// (Stage 6). Every other collection —
 // including otpChallenges and rateLimits, which are server-only forever —
 // stays closed until the stage that introduces it.
 service cloud.firestore {
@@ -140,6 +141,36 @@ service cloud.firestore {
         allow delete: if isActiveSelf(uid)
           && getAfter(/databases/$(database)/documents/customers/$(uid)).data.defaultAddressId != addressId;
       }
+    }
+
+    // ── Technicians (Stage 6) ─────────────────────────────────────────
+    // Public profile: readable by signed-in users (customers see name,
+    // photo, rating). Matching data — services, areas, availability — and
+    // verification status, stats and timestamps are written by Cloud
+    // Functions only. The technician may edit their bio, experience and
+    // profile photo, and go online/offline — online ONLY when VERIFIED.
+    match /technicians/{uid} {
+      allow read: if signedIn();
+      allow update: if isActiveSelf(uid)
+        && request.auth.token.tech == true
+        && onlyChanges(["bio", "yearsExperience", "photoPath", "isOnline", "updatedAt"])
+        && isText(request.resource.data.bio, 0, 500)
+        && request.resource.data.yearsExperience is int
+        && request.resource.data.yearsExperience >= 0 && request.resource.data.yearsExperience <= 60
+        && (request.resource.data.photoPath == null
+            || (request.resource.data.photoPath is string
+                && request.resource.data.photoPath.matches("^technicians/" + uid + "/profile/[^/]+$")))
+        && request.resource.data.isOnline is bool
+        && (request.resource.data.isOnline == false || resource.data.verificationStatus == "VERIFIED")
+        && stampedNow("updatedAt");
+      allow create, delete: if false;
+    }
+
+    // Identity documents and review history: the technician and admins only.
+    // Created by technicians-submitVerification, reviewed by admin-reviewTechnician.
+    match /technicianVerifications/{verificationId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.technicianId == request.auth.uid);
+      allow write: if false;
     }
 
     // ── Public catalogue ───────────────────────────────────────────────

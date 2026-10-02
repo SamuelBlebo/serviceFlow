@@ -17,7 +17,7 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r --filter !@serviceflow/rules-tests test",
     "test:rules": "firebase emulators:exec --only firestore,storage --project demo-serviceflow \"pnpm --filter @serviceflow/rules-tests test\"",
-    "test:integration": "pnpm --filter @serviceflow/functions build && firebase emulators:exec --only auth,firestore,functions --project demo-serviceflow \"pnpm --filter @serviceflow/functions test:integration\"",
+    "test:integration": "pnpm --filter @serviceflow/functions build && firebase emulators:exec --only auth,firestore,functions,storage --project demo-serviceflow \"pnpm --filter @serviceflow/functions test:integration\"",
     "test:legacy": "pnpm --filter @serviceflow/legacy-api test",
     "dev:legacy": "pnpm --filter @serviceflow/legacy-api dev",
     "db:generate": "pnpm --filter @serviceflow/database generate",
