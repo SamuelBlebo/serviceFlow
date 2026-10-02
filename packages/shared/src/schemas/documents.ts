@@ -16,6 +16,7 @@ import {
   VerificationStatus,
   WalletTransactionType,
 } from "../enums";
+import { type BookingTimelineField, PriceSetBy, QuoteStatus, TIMELINE_FIELD } from "../bookings/booking";
 import { WEIGHTS } from "../matching/score";
 import { DEFAULT_TIMEZONE } from "../time";
 import { PROFILE_LIMITS, normalizeGhanaPostGps } from "../profile";
@@ -235,17 +236,32 @@ export const bookingDoc = z.object({
   technicianSnapshot: z.object({ displayName: z.string(), photoPath: z.string().nullable() }).nullable(),
   status: z.enum(BookingStatus),
   problemDescription: z.string().min(3).max(1000),
+  /** Approximate location for matching; landmark directions live in private/contact. */
   location: latLng.extend({ address: z.string().nullable(), areaId: docId.nullable() }),
   preferredTime: z.enum(PreferredTime),
   scheduledAt: timestampLike.nullable(),
   pricing: z.object({
     estimateMinMinor: minorAmount,
     estimateMaxMinor: minorAmount,
+    /** Decision D4: technician quote, accepted by the customer (or set by an admin). */
     quotedMinor: minorAmount.nullable(),
+    quoteStatus: z.enum(QuoteStatus),
+    quoteNote: z.string().nullable(),
+    /** The customer's reason when they declined the last quote. */
+    quoteRejectionReason: z.string().nullable(),
+    priceSetBy: z.enum(PriceSetBy).nullable(),
+    /** Locked by the server when the customer confirms completion. */
     finalMinor: minorAmount.nullable(),
     commissionPercentSnapshot: percent.nullable(),
     currency: z.string().length(3),
   }),
+  /** Stage timestamps, set by the transition that enters each status. */
+  timeline: z.object(
+    Object.fromEntries(Object.values(TIMELINE_FIELD).map((f) => [f, timestampLike.optional()])) as Record<
+      BookingTimelineField,
+      z.ZodOptional<typeof timestampLike>
+    >,
+  ),
   candidates: z.array(bookingCandidate).max(10),
   declinedTechnicianIds: z.array(docId),
   offerExpiresAt: timestampLike.nullable(),
@@ -267,6 +283,19 @@ export const bookingStatusHistoryDoc = z.object({
   createdAt: timestampLike,
 });
 export type BookingStatusHistoryDoc = z.infer<typeof bookingStatusHistoryDoc>;
+
+/**
+ * `bookings/{id}/private/contact` — how to reach the customer. Readable by the
+ * customer, admins and the assigned technician only once they have accepted.
+ */
+export const bookingContactDoc = z.object({
+  customerName: z.string(),
+  customerPhone: z.string().nullable(),
+  directions: z.string().nullable(),
+  ghanaPostGps: z.string().nullable(),
+  notes: z.string().nullable(),
+});
+export type BookingContactDoc = z.infer<typeof bookingContactDoc>;
 
 export const bookingMediaDoc = z.object({
   kind: z.enum(BookingMediaKind),

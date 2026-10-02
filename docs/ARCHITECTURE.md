@@ -85,6 +85,16 @@ Phone (customer / technician)                         Admin
 - **Direct owner writes** to `technicians/{uid}` are limited by rules to `bio`, `yearsExperience`, `photoPath` (own profile folder), `isOnline` and `updatedAt` — and `isOnline` can be true only while VERIFIED. Verification status, services, areas and stats are server-only.
 - Web: `/become-a-provider` → `/tech/register` → `/tech` (status + checklist + online switch), `/tech/availability`, `/tech/verification`, `/tech/profile`; admin `/admin/verification` (queue with the private photos) and `/admin/technicians`. Mobile: the same flow under `app/tech/*` with camera/gallery capture (`expo-image-picker`), on-device compression (`expo-image-manipulator`) and `putFile` uploads; the Home online switch exists only once verified.
 
+## Bookings (Stage 7)
+
+- **One writer of status.** `writeTransition` (apps/functions/src/domains/bookings/common.ts) is the only code that changes `bookings.status`: it checks the shared state machine for the transition *and* the actor, stamps the stage timestamp (`timeline.*`), and appends immutable `statusHistory` — inside the caller's transaction, after re-reading the booking. Rules deny every client write to bookings.
+- **Idempotency.** Creating uses a deterministic id (`bk_` + hash of customer and request id). Every other action writes a receipt `bookings/{id}/requests/{uid}_{requestId}` in the same transaction, so a retried request is a no-op instead of an error or a double change. Receipts are server-only.
+- **Ownership (fixes D-1).** The caller's role *on this booking* decides the actor: its customer, its assigned technician, or an admin (audited). Offered-but-not-accepted technicians can only accept or decline.
+- **Price authority (Decision D4).** The assigned technician quotes within the service's price range (ACCEPTED/EN_ROUTE/ARRIVED); the customer accepts or declines with a reason; work can't start (ARRIVED → IN_PROGRESS) until a price is agreed. `admin-setBookingPrice` sets any amount (recent sign-in, reason, audited). On confirmation the server locks `finalMinor` from the agreed quote — never a client figure (fixes D-2) — and snapshots the commission percent (technician → service → global rule → platform default).
+- **Counters in the transaction (fixes D-8).** Offer responses, completed and technician-cancelled jobs, and the technician's `activeBookingId` (one job at a time) change in the same transaction as the transition.
+- **Privacy.** The customer's phone and landmark directions live in `bookings/{id}/private/contact`, readable by the customer, admins, and the assigned technician only from ACCEPTED until COMPLETED. Bookings are readable by `participantIds` (customer + offered/assigned technician) and admins; list queries must use `participantIds array-contains <uid>`.
+- **Not yet:** matching (REQUESTED → MATCHING → OFFERED, candidates, offer expiry) is the next stage; until then new bookings honestly read "Finding a technician". The payment invoice is created at confirmation from the Payments stage on.
+
 ## Cloud Functions build
 
 `firebase.json` points Functions at `apps/functions/dist`, produced by `apps/functions/scripts/build.mjs`: an esbuild bundle (inlining `@serviceflow/*` and zod) plus a generated `package.json` listing only `firebase-admin` and `firebase-functions`. This avoids `workspace:*` dependencies breaking the cloud `npm install`. `src/lib/global-options.ts` must stay the first import in `src/index.ts` so region and instance limits apply to every function.
@@ -99,6 +109,7 @@ Phone (customer / technician)                         Admin
 ## Stage log
 
 - **Stage 2 — Foundation**: monorepo, shared domain packages, Firebase config (deny-by-default rules, indexes), Functions skeleton with health checks and seed, web and mobile shells reading live services.
+- **Stage 7 — Bookings**: server-only booking state machine with history and idempotency receipts, create/cancel/offer response/job steps/quote/confirm callables, admin reassign and price override, booking rules, customer booking pages (web + mobile) and admin bookings.
 - **Stage 6 — Technician onboarding and verification**: register/services/verification/review callables, Storage rules for private ID documents, technician rules, web provider + admin review pages, mobile onboarding with photo capture and compression.
 - **Stage 5 — Services**: audited admin catalogue callables, admin services page, public services list and detail pages, null-tolerant optional callable inputs.
 - **Stage 4 — Users and profiles**: customer profiles and saved addresses (rules-validated client writes), welcome step, profile page, mobile display-name editing.

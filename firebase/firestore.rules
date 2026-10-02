@@ -13,7 +13,8 @@ rules_version = '2';
 // Open so far: the public service and service-area catalogues and platform
 // settings (Stage 2); account documents (Stage 3); customer profiles and
 // saved addresses (Stage 4); technician profiles and verification records
-// (Stage 6). Every other collection —
+// (Stage 6); read access to bookings, their history and private contact
+// (Stage 7). Every other collection —
 // including otpChallenges and rateLimits, which are server-only forever —
 // stays closed until the stage that introduces it.
 service cloud.firestore {
@@ -171,6 +172,40 @@ service cloud.firestore {
     match /technicianVerifications/{verificationId} {
       allow read: if isAdmin() || (signedIn() && resource.data.technicianId == request.auth.uid);
       allow write: if false;
+    }
+
+    // ── Bookings ───────────────────────────────────────────────────────
+    // Every write goes through Cloud Functions (the state machine is the
+    // only writer of status). The customer, the offered or assigned
+    // technician (participantIds) and admins may read. List queries must
+    // filter on `participantIds array-contains <uid>` to be allowed.
+    function booking(bookingId) {
+      return get(/databases/$(database)/documents/bookings/$(bookingId)).data;
+    }
+
+    function isParticipant(data) {
+      return signedIn() && request.auth.uid in data.participantIds;
+    }
+
+    match /bookings/{bookingId} {
+      allow read: if isAdmin() || isParticipant(resource.data);
+      allow write: if false;
+
+      match /statusHistory/{entryId} {
+        allow read: if isAdmin() || isParticipant(booking(bookingId));
+        allow write: if false;
+      }
+
+      // Customer phone and directions: the customer, admins, and the
+      // assigned technician only once they have accepted the job.
+      match /private/{docId} {
+        allow read: if isAdmin()
+          || (signedIn() && booking(bookingId).customerId == request.auth.uid)
+          || (signedIn() && booking(bookingId).technicianId == request.auth.uid
+              && booking(bookingId).status in ["ACCEPTED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS", "COMPLETED"]);
+        allow write: if false;
+      }
+      // Other subcollections (e.g. idempotency receipts) stay closed.
     }
 
     // ── Public catalogue ───────────────────────────────────────────────

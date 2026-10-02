@@ -220,7 +220,7 @@ describe("ProfilePage", () => {
 
 describe("CustomerHome", () => {
   it("greets the customer by first name and shows the default address", () => {
-    renderWithProfile(<CustomerHome />);
+    renderWithProfile(<CustomerHome watchMine={(_uid, onData) => (onData([]), () => undefined)} />);
     expect(screen.getByRole("heading", { name: "Welcome, Ama" })).toBeInTheDocument();
     expect(screen.getByText(/East Legon, Opposite the Shell station/)).toBeInTheDocument();
   });

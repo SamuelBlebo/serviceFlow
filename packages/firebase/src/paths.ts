@@ -41,6 +41,7 @@ export const SUBCOLLECTIONS = {
   messages: "messages",
   transactions: "transactions",
   addresses: "addresses",
+  requests: "requests",
 } as const;
 
 /** Well-known singleton documents. */
@@ -82,6 +83,9 @@ export const paths = {
   bookingContact: (bookingId: string) => `${paths.booking(bookingId)}/${SUBCOLLECTIONS.private}/contact`,
   bookingMedia: (bookingId: string) => `${paths.booking(bookingId)}/${SUBCOLLECTIONS.media}`,
   bookingMessages: (bookingId: string) => `${paths.booking(bookingId)}/${SUBCOLLECTIONS.messages}`,
+  /** Idempotency receipt for one client request on a booking (server-only). */
+  bookingRequest: (bookingId: string, key: string) =>
+    `${paths.booking(bookingId)}/${SUBCOLLECTIONS.requests}/${seg(key, "request")}`,
 
   /** One payment per booking — the booking id IS the payment id. */
   payment: (bookingId: string) => `${COLLECTIONS.payments}/${seg(bookingId, "booking")}`,

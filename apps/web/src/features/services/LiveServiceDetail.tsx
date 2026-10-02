@@ -36,7 +36,7 @@ export function ServiceDetailView({ state }: { state: ServiceDetailState }) {
         <strong className="font-semibold text-ink-900">{formatMoneyRange(service.priceRange.minMinor, service.priceRange.maxMinor)}</strong>
       </p>
       <p className="mt-1 text-sm text-ink-500">Your technician confirms the final price before work starts.</p>
-      <Link to="/app/request" className="mt-8 inline-block rounded-lg bg-brand-600 px-5 py-3 font-medium text-white hover:bg-brand-700">
+      <Link to={`/app/request?service=${encodeURIComponent(service.id)}`} className="mt-8 inline-block rounded-lg bg-brand-600 px-5 py-3 font-medium text-white hover:bg-brand-700">
         Request {service.name.toLowerCase()}
       </Link>
     </article>

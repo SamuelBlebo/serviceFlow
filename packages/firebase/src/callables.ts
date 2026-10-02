@@ -15,8 +15,11 @@ import {
   verifyOtpInput,
   verifyOtpOutput,
   requestPayoutInput,
+  reassignBookingInput,
   respondToOfferInput,
+  respondToQuoteInput,
   selectTechnicianInput,
+  setBookingPriceInput,
   submitQuoteInput,
   submitRatingInput,
   submitVerificationInput,
@@ -113,6 +116,12 @@ export const callables = {
   }),
   advanceJob: defineCallable({ name: "bookings-advance", input: advanceJobInput, output: mutationResult, stage: "bookings" }),
   submitQuote: defineCallable({ name: "bookings-submitQuote", input: submitQuoteInput, output: mutationResult, stage: "bookings" }),
+  respondToQuote: defineCallable({
+    name: "bookings-respondToQuote",
+    input: respondToQuoteInput,
+    output: mutationResult,
+    stage: "bookings",
+  }),
   confirmCompletion: defineCallable({
     name: "bookings-confirmCompletion",
     input: confirmCompletionInput,
@@ -120,6 +129,18 @@ export const callables = {
     stage: "bookings",
   }),
   cancelBooking: defineCallable({ name: "bookings-cancel", input: cancelBookingInput, output: mutationResult, stage: "bookings" }),
+  reassignBooking: defineCallable({
+    name: "admin-reassignBooking",
+    input: reassignBookingInput,
+    output: mutationResult,
+    stage: "bookings",
+  }),
+  setBookingPrice: defineCallable({
+    name: "admin-setBookingPrice",
+    input: setBookingPriceInput,
+    output: mutationResult,
+    stage: "bookings",
+  }),
 
   initiatePayment: defineCallable({
     name: "payments-initiate",

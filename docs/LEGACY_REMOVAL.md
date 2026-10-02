@@ -6,7 +6,7 @@ Legend: ⬜ not started · 🟨 partially replaced (pure logic ported, service n
 
 | Legacy module | Replacement | Legacy tests → replacement coverage | Status |
 | --- | --- | --- | --- |
-| `modules/bookings/booking-state-machine.ts` | `packages/shared/src/bookings/state-machine.ts` | 11 tests ported verbatim + exhaustive helper tests | 🟨 logic ported; delete with the bookings service |
+| `modules/bookings/booking-state-machine.ts` | `packages/shared/src/bookings/state-machine.ts` | 11 tests ported verbatim + exhaustive helper tests | 🟨 logic ported and now enforced by the Stage 7 booking service; delete with `bookings.service.ts` |
 | `modules/matching/matching.service.ts` (scoring) | `packages/shared/src/matching/{score,eligibility}.ts` | 8 tests ported + new eligibility/ranking tests | 🟨 logic ported; Firestore query in Matching stage |
 | `modules/commission/commission.service.ts` | `packages/shared/src/commission/{split,resolve}.ts` | 4 tests restated in pesewas + precedence tests | 🟨 logic ported; Firestore lookup in Bookings/Payments stages |
 | `modules/wallet/wallet.service.ts` | `packages/shared/src/wallet/ledger.ts` + wallet Functions | New ledger/payout-guard tests | 🟨 math ported; Functions in Wallet stage |
@@ -18,11 +18,11 @@ Legend: ⬜ not started · 🟨 partially replaced (pure logic ported, service n
 | `app.test.ts` (HTTP) | callable/rules tests | health, validation, 401/403 cases → `health.test.ts`, `guards.test.ts`, rules tests | 🟨 equivalents exist |
 | `modules/services/*` | `services` collection + `admin-upsertService` / `admin-setServiceActive` (Stage 5) | — (legacy had no service tests) → 13 catalogue integration tests | 🟨 replacement complete. Removal deferred: the legacy WhatsApp bot still reads services through Prisma until the WhatsApp stage |
 | `modules/technicians/*` | `technicians` + `technicians-register` / `-updateServices` / `-submitVerification` and `admin-reviewTechnician` (Stage 6) | — (legacy had no technician tests) → 14 domain integration tests + 1 HTTP auth test, 10 technician Firestore rules tests, 8 Storage rules tests | 🟨 replacement complete. Removal deferred: legacy bookings, matching and the WhatsApp bot read technicians through Prisma until their stages |
-| `modules/bookings/bookings.service.ts` | booking domain service + callables | — | ⬜ Bookings stage |
+| `modules/bookings/bookings.service.ts` | `apps/functions/src/domains/bookings/*` + `bookings-*` / `admin-reassignBooking` / `admin-setBookingPrice` callables (Stage 7) | — (legacy had no booking service tests) → 19 domain integration tests, 2 HTTP tests, 6 booking rules tests | 🟨 lifecycle replaced; matching/offers (`selectTechnician`, offer expiry) arrive in the Matching stage. Removal deferred: the legacy WhatsApp bot still books through it until the WhatsApp stage |
 | `modules/ratings/ratings.service.ts` | `ratings-submit` callable | — | ⬜ Bookings/Ratings stage |
 | `packages/shared/src/{phone,geo,errors}.ts` | unchanged (already shared) | 15 tests kept | ✅ nothing to remove |
 | `CustomerProfile` model (`fullName`, single default address) | `customers/{uid}` + `addresses` subcollection (Stage 4) | — (legacy had no profile tests) | 🟨 replaced in Firestore; Prisma model removed with `packages/database` |
 | `packages/database` (Prisma) | Firestore data model (§8) | — | ⬜ last |
 | `scripts/bootstrap-admin.ts` | `apps/functions/src/scripts/bootstrap-admin.ts` (emulator-only until a real project exists) | — | 🟨 replacement built (Stage 3); legacy copy removed with the legacy API |
 
-Legacy defects D-1…D-16 (SERVICEFLOW_MIGRATION_PLAN.md §5.14) are fixed in the replacements, not back-ported. Fixed so far: D-10 (no user suspension) and D-16 (Math.random OTP; accounts created on code request) in Stage 3; D-9 (verification resubmission reset any status to PENDING) and D-15 (verification "uploads" were arbitrary client URLs) in Stage 6; D-17 (typecheck error) in Stage 2.
+Legacy defects D-1…D-16 (SERVICEFLOW_MIGRATION_PLAN.md §5.14) are fixed in the replacements, not back-ported. Fixed so far: D-10 (no user suspension) and D-16 (Math.random OTP; accounts created on code request) in Stage 3; D-9 (verification resubmission reset any status to PENDING) and D-15 (verification "uploads" were arbitrary client URLs) in Stage 6; D-1 (cancel without ownership check), D-2 (customer-supplied final price) and D-8 (counters outside the transaction) in Stage 7; D-17 (typecheck error) in Stage 2.
