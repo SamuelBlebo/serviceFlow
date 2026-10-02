@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import { RequestForm } from "../../features/bookings/RequestForm";
 import { renderWithAuth, signedIn } from "../../test/auth";
+import type { JobPhoto } from "../../lib/bookings/booking-store";
 import { assigned, booking, fakeBookingStore, history, staticWatch } from "../../test/bookings";
 import { address, renderWithProfile } from "../../test/profile";
 import { SERVICES } from "../../test/technician";
@@ -122,8 +123,8 @@ describe("BookingsPage and dashboard", () => {
 });
 
 describe("BookingDetailPage", () => {
-  const renderDetail = (b: ReturnType<typeof booking>, store = fakeBookingStore(), steps = history("REQUESTED")) => {
-    renderWithProfile(<BookingDetailPage store={store} watchOne={staticWatch(b)} watchSteps={staticWatch(steps)} />, {
+  const renderDetail = (b: ReturnType<typeof booking>, store = fakeBookingStore(), steps = history("REQUESTED"), photos: JobPhoto[] = []) => {
+    renderWithProfile(<BookingDetailPage store={store} watchOne={staticWatch(b)} watchSteps={staticWatch(steps)} watchJobPhotos={staticWatch(photos)} loadUrl={async (path) => `https://img.test/${path}`} />, {
       path: "/app/bookings/:id",
     });
     return store;
@@ -206,6 +207,15 @@ describe("BookingDetailPage", () => {
     expect(store.confirm).toHaveBeenCalledWith(expect.objectContaining({ bookingId: "bk_1" }));
   });
 
+  it("shows the technician's notes and before/after photos", async () => {
+    const photo = (id: string, kind: "BEFORE" | "AFTER") => ({ id, kind, storagePath: `bookings/bk_1/${kind}/${id}.jpg`, contentType: "image/jpeg", sizeBytes: 1, uploadedBy: "t1", createdAt: { toMillis: () => 0 } });
+    renderDetail(booking({ status: "COMPLETED", ...assigned, completionNotes: "Replaced the trap" }), fakeBookingStore(), history("REQUESTED"), [photo("a", "BEFORE"), photo("b", "AFTER")]);
+    const record = screen.getByTestId("job-record");
+    expect(record).toHaveTextContent("“Replaced the trap”");
+    expect(await within(record).findByAltText("Before photo")).toHaveAttribute("src", "https://img.test/bookings/bk_1/BEFORE/a.jpg");
+    expect(await within(record).findByAltText("After photo")).toBeInTheDocument();
+  });
+
   it("shows who cancelled and why", () => {
     renderDetail(booking({ status: "CANCELLED", cancellation: { byUid: "t1", actor: "TECHNICIAN", reason: "Motorbike broke down", at: { toMillis: () => 0 } } }));
     expect(screen.getByText(/By the technician — Motorbike broke down/)).toBeInTheDocument();
@@ -228,6 +238,8 @@ describe("admin bookings", () => {
         watchOne={staticWatch(b)}
         watchSteps={staticWatch(history("REQUESTED"))}
         watchPrivate={staticWatch({ customerName: "Ama Serwaa", customerPhone: "+233241234567", directions: "Blue gate", ghanaPostGps: null, notes: null })}
+        watchJobPhotos={staticWatch([])}
+        loadUrl={async () => ""}
       />,
       { session: signedIn({ admin: true }), path: "/admin/bookings/:id" },
     );

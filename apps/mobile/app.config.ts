@@ -46,6 +46,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     [
+      "expo-location",
+      {
+        // Asked once when a technician sets off for a job; never tracked in the background.
+        locationWhenInUsePermission: "ServiceFlow records where you set off from when you start travelling to a job.",
+        isAndroidBackgroundLocationEnabled: false,
+      },
+    ],
+    [
       "expo-build-properties",
       {
         // Required by React Native Firebase on iOS.

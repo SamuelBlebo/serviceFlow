@@ -11,7 +11,11 @@ import {
   CONTACT_VISIBLE_STATUSES,
   QuoteStatus,
   TIMELINE_FIELD,
+  TECH_STEP_LABELS,
+  canAddJobPhoto,
   canAdminSetPrice,
+  jobBucket,
+  nextTechnicianStep,
   canRespondToQuote,
   canSubmitQuote,
   isOpenBooking,
@@ -76,6 +80,38 @@ describe("scheduleProblem", () => {
     expect(scheduleProblem(PreferredTime.SCHEDULED, NOW + 30 * 86_400_000, NOW)).toBeNull();
     expect(scheduleProblem(PreferredTime.SCHEDULED, NOW + 31 * 86_400_000, NOW)).toMatch(/30 days/);
     expect(scheduleProblem(PreferredTime.SCHEDULED, Number.NaN, NOW)).toMatch(/Choose a date/);
+  });
+});
+
+describe("technician workflow helpers", () => {
+  const job = (status: BookingStatus, extra: Record<string, unknown> = {}) =>
+    ({ status, technicianId: "t1", offeredTechnicianId: null, preferredTime: PreferredTime.ASAP, ...extra }) as Parameters<typeof jobBucket>[0];
+
+  it("gives exactly one next step, in order, and none after completion", () => {
+    expect(nextTechnicianStep(BookingStatus.ACCEPTED)).toBe(BookingStatus.EN_ROUTE);
+    expect(nextTechnicianStep(BookingStatus.ARRIVED)).toBe(BookingStatus.IN_PROGRESS);
+    expect(nextTechnicianStep(BookingStatus.IN_PROGRESS)).toBe(BookingStatus.COMPLETED);
+    expect(nextTechnicianStep(BookingStatus.COMPLETED)).toBeNull();
+    expect(nextTechnicianStep(BookingStatus.OFFERED)).toBeNull();
+    for (const s of [BookingStatus.EN_ROUTE, BookingStatus.ARRIVED, BookingStatus.IN_PROGRESS, BookingStatus.COMPLETED]) expect(TECH_STEP_LABELS[s]).toBeTruthy();
+  });
+
+  it("allows before photos on site and after photos once work started", () => {
+    expect(canAddJobPhoto(BookingStatus.ARRIVED, "BEFORE")).toBe(true);
+    expect(canAddJobPhoto(BookingStatus.EN_ROUTE, "BEFORE")).toBe(false);
+    expect(canAddJobPhoto(BookingStatus.ARRIVED, "AFTER")).toBe(false);
+    expect(canAddJobPhoto(BookingStatus.COMPLETED, "AFTER")).toBe(true);
+    expect(canAddJobPhoto(BookingStatus.CUSTOMER_CONFIRMED, "AFTER")).toBe(false);
+  });
+
+  it("sorts jobs into the technician's tabs", () => {
+    expect(jobBucket(job(BookingStatus.OFFERED, { technicianId: null, offeredTechnicianId: "t1" }), "t1")).toBe("offer");
+    expect(jobBucket(job(BookingStatus.OFFERED, { technicianId: null, offeredTechnicianId: "t2" }), "t1")).toBeNull();
+    expect(jobBucket(job(BookingStatus.ACCEPTED, { preferredTime: PreferredTime.SCHEDULED }), "t1")).toBe("upcoming");
+    expect(jobBucket(job(BookingStatus.EN_ROUTE), "t1")).toBe("active");
+    expect(jobBucket(job(BookingStatus.COMPLETED), "t1")).toBe("done");
+    expect(jobBucket(job(BookingStatus.CANCELLED), "t1")).toBe("done");
+    expect(jobBucket(job(BookingStatus.EN_ROUTE, { technicianId: "someone" }), "t1")).toBeNull();
   });
 });
 

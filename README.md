@@ -4,7 +4,7 @@ A Ghana-first platform that makes it easy for customers to find, book, track and
 
 **One Firebase backend. One source of truth. Web + mobile + WhatsApp working together.**
 
-> **Status: Stage 8 (Matching) complete.** Phone and admin sign-in, account suspension, customer profiles with Ghana-style addresses, an admin-managed service catalogue, technician onboarding and verification, the booking lifecycle (technician quote → customer accepts, confirmation with a locked price and commission snapshot, cancellation, admin tools) and matching (top 3 nearby available technicians, the customer chooses, offers and unmatched bookings expire automatically) run on the local Firebase emulators, on web and mobile. The technician job screens, payments and more are built stage by stage — see [SERVICEFLOW_MIGRATION_PLAN.md](SERVICEFLOW_MIGRATION_PLAN.md).
+> **Status: Stage 9 (Technician mobile workflow) complete.** Phone and admin sign-in, account suspension, customer profiles with Ghana-style addresses, an admin-managed service catalogue, technician onboarding and verification, the booking lifecycle (technician quote → customer accepts, confirmation with a locked price and commission snapshot, cancellation, admin tools) matching (top 3 nearby available technicians, the customer chooses, offers and unmatched bookings expire automatically) and the technician's mobile job workflow (offers with a countdown, one-tap next step, on-site quote, call/navigate, before/after photos, completion notes) run on the local Firebase emulators. Web dashboards, payments and more are built stage by stage — see [SERVICEFLOW_MIGRATION_PLAN.md](SERVICEFLOW_MIGRATION_PLAN.md).
 
 ## Repository layout
 

@@ -268,6 +268,10 @@ export const bookingDoc = z.object({
   /** When a booking still without a technician is cancelled by the system (D-12). */
   matchingExpiresAt: timestampLike.nullable().optional(),
   lastMatchedAt: timestampLike.nullable().optional(),
+  /** Captured once when the technician sets off (no background tracking). */
+  enRouteLocation: latLng.nullable().optional(),
+  /** The technician's notes when finishing the job. */
+  completionNotes: z.string().nullable().optional(),
   source: z.enum(ChannelSource),
   cancellation: z
     .object({ byUid: docId.nullable(), actor: z.string(), reason: z.string(), at: timestampLike })

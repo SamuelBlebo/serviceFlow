@@ -4,7 +4,7 @@ import { availabilityWindow } from "./documents";
 import { SERVICE_LIMITS, slugify } from "../catalogue";
 import { PROFILE_LIMITS, normalizeGhanaPostGps } from "../profile";
 import { ReviewDecision, TECHNICIAN_LIMITS, hasOverlappingWindows, normalizeIdNumber } from "../technician";
-import { BOOKING_LIMITS } from "../bookings/booking";
+import { BOOKING_LIMITS, JOB_LIMITS } from "../bookings/booking";
 import { docId, ghanaPhone, latLng, minorAmount, optionalInput, personName, requestId } from "./primitives";
 
 /**
@@ -167,9 +167,21 @@ export const advanceJobInput = z.object({
   requestId,
   bookingId: docId,
   to: z.enum(TECHNICIAN_JOB_STEPS),
+  /** Captured once at EN_ROUTE (optional: the technician may refuse location access). */
   location: optionalInput(latLng),
+  /** Notes when finishing (COMPLETED). */
+  notes: optionalInput(z.string().trim().max(JOB_LIMITS.notesMax)),
 });
 export type AdvanceJobInput = z.input<typeof advanceJobInput>;
+
+/** Registers a before/after photo the assigned technician uploaded to `bookings/{id}/{kind}/`. */
+export const addJobPhotoInput = z.object({
+  requestId,
+  bookingId: docId,
+  kind: z.enum(["BEFORE", "AFTER"]),
+  storagePath: z.string().min(1).max(300),
+});
+export type AddJobPhotoInput = z.input<typeof addJobPhotoInput>;
 
 /** Technician's price for the job, within the service's range (Decision D4). */
 export const submitQuoteInput = z.object({

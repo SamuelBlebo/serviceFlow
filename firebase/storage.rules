@@ -5,7 +5,8 @@ rules_version = '2';
 // with ownership, content-type and size checks. Clients compress images
 // before upload (technicians are on limited mobile data).
 //
-// Open so far (Stage 6): technician profile photos and identity documents.
+// Open so far: technician profile photos and identity documents (Stage 6);
+// before/after job photos (Stage 9).
 service firebase.storage {
   match /b/{bucket}/o {
 
@@ -44,6 +45,25 @@ service firebase.storage {
       // `resource == null`: the object must not already exist (no overwriting
       // documents that are under review or already reviewed).
       allow create: if isActiveTechnician(uid) && resource == null && isImageUnder(8 * 1024 * 1024);
+      allow update, delete: if false;
+    }
+
+    // Before/after job photos. Uploaded only by the booking's assigned
+    // technician while on the job, written once, readable by the booking's
+    // participants and admins. bookings-addJobPhoto then records them.
+    function bookingData(bookingId) {
+      return firestore.get(/databases/(default)/documents/bookings/$(bookingId)).data;
+    }
+
+    match /bookings/{bookingId}/{kind}/{file} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid in bookingData(bookingId).participantIds);
+      allow create: if signedIn()
+        && request.auth.token.tech == true
+        && kind in ["BEFORE", "AFTER"]
+        && bookingData(bookingId).technicianId == request.auth.uid
+        && bookingData(bookingId).status in ["ARRIVED", "IN_PROGRESS", "COMPLETED"]
+        && resource == null
+        && isImageUnder(8 * 1024 * 1024);
       allow update, delete: if false;
     }
 

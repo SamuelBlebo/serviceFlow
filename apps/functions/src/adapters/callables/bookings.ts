@@ -6,7 +6,8 @@ import { advanceJob, cancelBooking, confirmCompletion, reassignBooking, respondT
 import { matchBooking, rematchBooking, rematchIfExhausted, selectTechnician } from "../../domains/bookings/matching";
 import { respondToQuote, setBookingPrice, submitQuote } from "../../domains/bookings/pricing";
 import { logger } from "firebase-functions";
-import { db } from "../../lib/admin";
+import { addJobPhoto } from "../../domains/bookings/media";
+import { bucket, db } from "../../lib/admin";
 import { withErrorMapping } from "../../lib/errors";
 import { parseInput, requireActiveUser, requireCapability, requireRecentSignIn } from "../../lib/guards";
 
@@ -120,5 +121,14 @@ export const setBookingPriceCallable = onCall(
     requireRecentSignIn(request);
     const actor = await requireActiveUser(request, db());
     return setBookingPrice({ db: db() }, actor.uid, parseInput(callables.setBookingPrice.input, request.data));
+  }),
+);
+
+/** `bookings-addJobPhoto` — the assigned technician's before/after photos. */
+export const addJobPhotoCallable = onCall(
+  withErrorMapping(async (request: CallableRequest) => {
+    requireCapability(request, "tech");
+    const actor = await requireActiveUser(request, db());
+    return addJobPhoto({ db: db(), bucket: bucket() }, actor.uid, parseInput(callables.addJobPhoto.input, request.data));
   }),
 );

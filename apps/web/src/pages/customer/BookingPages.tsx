@@ -1,7 +1,7 @@
 import { BookingActor, BookingStatus, isOpenBooking } from "@serviceflow/shared";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
-import { CancelPanel, ConfirmPanel, Detail, MatchingPanel, QuotePanel, StatusBadge, Timeline, priceText, whenText } from "../../features/bookings/BookingParts";
+import { CancelPanel, ConfirmPanel, Detail, JobRecord, MatchingPanel, QuotePanel, StatusBadge, Timeline, priceText, whenText } from "../../features/bookings/BookingParts";
 import { RequestForm, type RequestValues } from "../../features/bookings/RequestForm";
 import { type Service, watchActiveServices } from "../../lib/admin/catalogue-store";
 import { FullPageSpinner } from "../../lib/auth/guards";
@@ -9,10 +9,13 @@ import {
   type Booking,
   type BookingStore,
   type HistoryEntry,
+  type JobPhoto,
   bookingStore,
+  photoUrl,
   watchBooking,
   watchHistory,
   watchMyBookings,
+  watchPhotos,
 } from "../../lib/bookings/booking-store";
 import { messageFromError } from "../../lib/errors";
 import { useCustomerProfile } from "../../lib/profile/CustomerProfileProvider";
@@ -25,6 +28,8 @@ export interface BookingPageDeps {
   watchMine?: typeof watchMyBookings;
   watchOne?: typeof watchBooking;
   watchSteps?: typeof watchHistory;
+  watchJobPhotos?: typeof watchPhotos;
+  loadUrl?: typeof photoUrl;
 }
 
 function Page({ title, children }: { title: string; children: React.ReactNode }) {
@@ -167,17 +172,24 @@ export function BookingsPage({ watchMine = watchMyBookings }: BookingPageDeps = 
 }
 
 /** `/app/bookings/:id` — live status, price agreement, confirmation and cancellation. */
-export function BookingDetailPage({ store = bookingStore, watchOne = watchBooking, watchSteps = watchHistory }: BookingPageDeps = {}) {
+export function BookingDetailPage({
+  store = bookingStore,
+  watchOne = watchBooking,
+  watchSteps = watchHistory,
+  watchJobPhotos = watchPhotos,
+  loadUrl = photoUrl,
+}: BookingPageDeps = {}) {
   const { id = "" } = useParams();
   const [booking, setBooking] = useState<Booking | null | undefined>(undefined);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [photos, setPhotos] = useState<JobPhoto[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fail = () => setError("We couldn't load this booking. Check your connection.");
-    const unsubs = [watchOne(id, setBooking, fail), watchSteps(id, setHistory, fail)];
+    const unsubs = [watchOne(id, setBooking, fail), watchSteps(id, setHistory, fail), watchJobPhotos(id, setPhotos, () => setPhotos([]))];
     return () => unsubs.forEach((u) => u());
-  }, [id, watchOne, watchSteps]);
+  }, [id, watchOne, watchSteps, watchJobPhotos]);
 
   if (error) return <Failure message={error} />;
   if (booking === undefined) return <FullPageSpinner />;
@@ -208,6 +220,8 @@ export function BookingDetailPage({ store = bookingStore, watchOne = watchBookin
           )}
         </dl>
       </section>
+
+      <JobRecord booking={booking} photos={photos} loadUrl={loadUrl} />
 
       <section>
         <h2 className="mb-3 font-semibold text-ink-900">Progress</h2>
