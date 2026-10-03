@@ -20,7 +20,7 @@ async function failure(promise: Promise<unknown>): Promise<AppError> {
   return err as AppError;
 }
 
-const settings = { defaultCommissionPercent: 15, offerTimeoutMinutes: 10, matchingExpiryMinutes: 60, matchRadiusKm: 15 };
+const settings = { defaultCommissionPercent: 15, offerTimeoutMinutes: 10, matchingExpiryMinutes: 60, matchRadiusKm: 15, cashAllowed: true };
 
 beforeEach(async () => {
   await resetEmulators();

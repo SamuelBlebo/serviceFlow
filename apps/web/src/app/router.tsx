@@ -26,6 +26,7 @@ const BookingDetailPage = lazyNamed(loadBookings, "BookingDetailPage");
 const loadAdminBookings = () => import("../pages/admin/AdminBookingPages");
 const AdminBookingsPage = lazyNamed(loadAdminBookings, "AdminBookingsPage");
 const AdminBookingDetailPage = lazyNamed(loadAdminBookings, "AdminBookingDetailPage");
+const AdminPaymentsPage = lazyNamed(loadAdminBookings, "AdminPaymentsPage");
 const AdminServicesPage = lazyNamed(() => import("../pages/admin/AdminServicesPage"), "AdminServicesPage");
 const loadAdminTech = () => import("../pages/admin/AdminTechnicianPages");
 const AdminVerificationPage = lazyNamed(loadAdminTech, "AdminVerificationPage");
@@ -198,12 +199,13 @@ export const routes = [
       { path: "technicians/:uid", element: withSuspense(<AdminTechnicianDetailPage />) },
       { path: "audit", element: withSuspense(<AdminAuditPage />) },
       { path: "settings", element: withSuspense(<AdminSettingsPage />) },
+      { path: "payments", element: withSuspense(<AdminPaymentsPage />) },
       { path: "services", element: withSuspense(<AdminServicesPage />) },
       { path: "verification", element: withSuspense(<AdminVerificationPage />) },
       { path: "technicians", element: withSuspense(<AdminTechniciansPage />) },
       { path: "bookings", element: withSuspense(<AdminBookingsPage />) },
       { path: "bookings/:id", element: withSuspense(<AdminBookingDetailPage />) },
-      ...laterStage(ADMIN_NAV, "/admin", { payments: "Payments", payouts: "Wallet and payouts", disputes: "Disputes", reports: "Analytics and reports" }),
+      ...laterStage(ADMIN_NAV, "/admin", { payouts: "Wallet and payouts", disputes: "Disputes", reports: "Analytics and reports" }),
     ],
   },
 ];

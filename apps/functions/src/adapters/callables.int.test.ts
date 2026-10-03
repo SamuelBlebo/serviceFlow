@@ -5,6 +5,8 @@ import { connectAuthEmulator, getAuth, signInWithCustomToken, signOut } from "fi
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from "firebase/functions";
 import { FieldValue } from "firebase-admin/firestore";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { MOCK_WEBHOOK_SECRET } from "../integrations/payments/factory";
+import { MOCK_SIGNATURE_HEADER, signMockWebhook } from "../integrations/payments/mock-payment-provider";
 import { adminClients, closeAdminClients, resetEmulators } from "../test/emulator";
 
 /**
@@ -235,5 +237,32 @@ describe("booking callables over HTTP", () => {
     );
     await select({ requestId: "req_http_select_2", bookingId: data.id, technicianId: "tech-http-1" });
     expect((await admin.db.doc(`bookings/${data.id}`).get()).get("status")).toBe("OFFERED");
+  });
+});
+
+describe("payment webhook over HTTP", () => {
+  const url = "http://127.0.0.1:5001/demo-serviceflow/europe-west1/webhooks-payments";
+  const body = JSON.stringify({ eventId: "evt_http_1", type: "charge.updated", reference: "mock_unknown_1", status: "SUCCEEDED" });
+
+  it("rejects unsigned and tampered webhooks, and anything but POST", async () => {
+    expect((await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body })).status).toBe(401);
+    const tampered = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", [MOCK_SIGNATURE_HEADER]: signMockWebhook(MOCK_WEBHOOK_SECRET, body) },
+      body: body.replace("evt_http_1", "evt_http_2"),
+    });
+    expect(tampered.status).toBe(401);
+    expect((await fetch(url, { method: "GET" })).status).toBe(405);
+  });
+
+  it("accepts a correctly signed event (unknown references change nothing)", async () => {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", [MOCK_SIGNATURE_HEADER]: signMockWebhook(MOCK_WEBHOOK_SECRET, body) },
+      body,
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ received: true, outcome: "unknown" });
+    expect((await admin.db.doc("paymentWebhookEvents/mock_evt_http_1").get()).exists).toBe(true);
   });
 });

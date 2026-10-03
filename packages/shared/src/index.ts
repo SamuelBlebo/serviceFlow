@@ -13,6 +13,7 @@ export * from "./profile";
 export * from "./catalogue";
 export * from "./technician";
 export * from "./admin-settings";
+export * from "./payments";
 
 export * from "./bookings/state-machine";
 export * from "./bookings/booking";

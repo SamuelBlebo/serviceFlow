@@ -1,5 +1,7 @@
 import {
   addJobPhotoInput,
+  confirmCashPaymentInput,
+  devMockPaymentOutcomeInput,
   createCommissionRuleInput,
   setCommissionRuleActiveInput,
   setServiceAreaActiveInput,
@@ -167,6 +169,8 @@ export const callables = {
     }),
     stage: "payments",
   }),
+  confirmCashPayment: defineCallable({ name: "payments-confirmCash", input: confirmCashPaymentInput, output: mutationResult, stage: "payments" }),
+  devMockPaymentOutcome: defineCallable({ name: "dev-mockPaymentOutcome", input: devMockPaymentOutcomeInput, output: mutationResult, stage: "payments" }),
   requestPayout: defineCallable({ name: "wallet-requestPayout", input: requestPayoutInput, output: mutationResult, stage: "wallet" }),
   submitRating: defineCallable({ name: "ratings-submit", input: submitRatingInput, output: mutationResult, stage: "ratings" }),
 } as const;

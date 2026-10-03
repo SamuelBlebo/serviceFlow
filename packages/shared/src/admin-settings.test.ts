@@ -19,7 +19,7 @@ describe("admin settings limits", () => {
 });
 
 describe("admin settings inputs", () => {
-  const settings = { requestId: REQ, defaultCommissionPercent: 15, offerTimeoutMinutes: 10, matchingExpiryMinutes: 60, matchRadiusKm: 15, supportPhone: null };
+  const settings = { requestId: REQ, defaultCommissionPercent: 15, offerTimeoutMinutes: 10, matchingExpiryMinutes: 60, matchRadiusKm: 15, supportPhone: null, cashAllowed: true };
 
   it("platform settings stay within safe ranges", () => {
     expect(updatePlatformSettingsInput.safeParse(settings).success).toBe(true);

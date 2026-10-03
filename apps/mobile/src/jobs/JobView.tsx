@@ -20,6 +20,7 @@ import { messageFromError } from "../lib/call";
 import { newRequestId } from "../lib/request-id";
 import type { PickPhoto } from "../technician/photos";
 import { colors, fontSize, radius, space } from "../theme";
+import type { Payment } from "../payments/payment-store";
 import type { Job, JobContact, JobPhoto, JobStore } from "./job-store";
 
 /** What the technician sees at each status (customer wording lives elsewhere). */
@@ -82,7 +83,8 @@ export interface JobViewProps {
   contact: JobContact | null;
   photos: JobPhoto[];
   now: number;
-  store: Pick<JobStore, "respondToOffer" | "advance" | "submitQuote" | "cancel" | "addPhoto">;
+  store: Pick<JobStore, "respondToOffer" | "advance" | "submitQuote" | "cancel" | "addPhoto"> & { confirmCash?: (input: { requestId: string; bookingId: string }) => Promise<unknown> };
+  payment?: Payment | null;
   pickPhoto: PickPhoto;
   getLocation(): Promise<{ lat: number; lng: number } | undefined>;
   openUrl(urls: string[]): void;
@@ -94,12 +96,13 @@ export interface JobViewProps {
  * phone and directions appear only after acceptance (rules-enforced). Every
  * success is shown only after the server confirms.
  */
-export function JobView({ job, uid, contact, photos, now, store, pickPhoto, getLocation, openUrl }: JobViewProps) {
+export function JobView({ job, uid, contact, photos, now, store, pickPhoto, getLocation, openUrl, payment = null }: JobViewProps) {
   const offer = useAction();
   const step = useAction();
   const quote = useAction();
   const photo = useAction();
   const cancel = useAction();
+  const cash = useAction();
   const [declining, setDeclining] = useState(false);
   const [declineReason, setDeclineReason] = useState("");
   const [amount, setAmount] = useState("");
@@ -254,6 +257,29 @@ export function JobView({ job, uid, contact, photos, now, store, pickPhoto, getL
           {waitingForPrice ? <Text style={fieldStyles.muted}>Agree a price with the customer before you start the work.</Text> : null}
           <PrimaryButton label={TECH_STEP_LABELS[next] ?? "Next"} busy={step.busy || waitingForPrice} onPress={() => void advance()} />
           <ErrorText message={step.error} />
+        </View>
+      ) : null}
+
+      {assigned && payment && (job.status === BookingStatus.CUSTOMER_CONFIRMED || job.status === BookingStatus.PAID) ? (
+        <View style={fieldStyles.card} testID="job-payment">
+          {payment.status === "SUCCEEDED" ? (
+            <Text style={fieldStyles.body}>
+              Paid {formatMoney(payment.amountMinor, payment.currency)}
+              {payment.method === "CASH" ? " in cash. ServiceFlow's commission is taken from your wallet." : " by Mobile Money. Your earnings are in your wallet."}
+            </Text>
+          ) : payment.method === "CASH" && payment.cashStatus === "AWAITING_TECHNICIAN" ? (
+            <>
+              <Text style={fieldStyles.body}>The customer is paying {formatMoney(payment.amountMinor, payment.currency)} in cash. Confirm once you have it.</Text>
+              <PrimaryButton
+                label="Confirm cash received"
+                busy={cash.busy}
+                onPress={() => void cash.run((requestId) => store.confirmCash!({ requestId, bookingId: job.id }))}
+              />
+              <ErrorText message={cash.error} />
+            </>
+          ) : (
+            <Text style={fieldStyles.muted}>Waiting for the customer to pay {formatMoney(payment.amountMinor, payment.currency)}.</Text>
+          )}
         </View>
       ) : null}
 

@@ -120,6 +120,17 @@ Phone (customer / technician)                         Admin
 - **Technician web**: `/tech/jobs` and `/tech/jobs/:id` with the same rules as the mobile app (offer countdown, one next step, quote, contact after acceptance, Google Maps directions link, cancel); photos stay on mobile. The provider dashboard shows the current job and new requests.
 - **Public**: How it works, About, Contact. Remaining placeholders (payments, payouts, disputes, reports, earnings, wallet, reviews) name the stage that builds them.
 
+## Payments (Stage 11)
+
+- **Invoice at confirmation.** `bookings-confirmCompletion` creates `payments/{bookingId}` (PENDING) in the same transaction, from the server-held final price and the commission snapshot (split in whole pesewas: commission + technician net = gross).
+- **Mobile Money.** `payments-initiate` (the booking's customer) reserves attempt *n* and calls the provider with idempotency key `bookingId:n` (a retried request reuses the attempt; a pending attempt is re-verified before being replaced). The customer approves the prompt on their phone.
+- **Webhooks.** `webhooks-payments` verifies the HMAC signature over the raw body (401 otherwise), de-duplicates on `paymentWebhookEvents/{provider_eventId}`, then **re-verifies the reference server-to-server** — the body alone never settles anything — and checks reference, amount and currency against the invoice.
+- **Finalisation (one transaction).** Payment SUCCEEDED, booking CUSTOMER_CONFIRMED → PAID (SYSTEM), wallet ledger entries created with deterministic ids (`earning_{bookingId}`, `commission_{bookingId}`, so a duplicate can't post) and the cached wallet balances updated. Already-paid is a no-op.
+- **Cash (Decision D5).** The customer chooses cash (if `settings/platform.cashAllowed`); the assigned technician confirms receipt with `payments-confirmCash`; finalisation posts only the COMMISSION_DEBIT, so the balance can go negative (commission owed) and later Mobile Money earnings net it off. Withdrawals while negative are blocked from the Wallet stage on.
+- **Reconciliation.** `schedules-reconcilePayments` (every 10 minutes) re-verifies Mobile Money attempts pending longer than 10 minutes.
+- **Providers.** Only `integrations/payments/factory.ts` chooses one. The development `MockPaymentProvider` behaves like a real one (pending charges, HMAC-signed webhooks) with sandbox state in `devMockPayments`, and refuses to run outside the Functions emulator; `dev-mockPaymentOutcome` (emulator only) plays the payer's phone. No real provider is connected yet.
+- **Rules.** Payments: the customer, the technician and admins read; the attempt log (masked numbers): the payer and admins; wallets and ledgers: the technician and admins. No client writes anywhere in money.
+
 ## Cloud Functions build
 
 `firebase.json` points Functions at `apps/functions/dist`, produced by `apps/functions/scripts/build.mjs`: an esbuild bundle (inlining `@serviceflow/*` and zod) plus a generated `package.json` listing only `firebase-admin` and `firebase-functions`. This avoids `workspace:*` dependencies breaking the cloud `npm install`. `src/lib/global-options.ts` must stay the first import in `src/index.ts` so region and instance limits apply to every function.
@@ -134,6 +145,7 @@ Phone (customer / technician)                         Admin
 ## Stage log
 
 - **Stage 2 — Foundation**: monorepo, shared domain packages, Firebase config (deny-by-default rules, indexes), Functions skeleton with health checks and seed, web and mobile shells reading live services.
+- **Stage 11 — Payments**: invoice at confirmation, Mobile Money with signed webhooks + re-verification + reconciliation, cash per D5, ledger entries on payment, payment UI on web and mobile, admin payments page.
 - **Stage 10 — Web dashboards**: admin home/KPIs, customers, technician detail, audit log, settings (platform, commission rules, service areas via audited callables), technician web jobs, public information pages.
 - **Stage 9 — Technician mobile workflow**: Jobs tab, job screen with countdown and one primary action, quote, call/navigate, one-time location, before/after photos (Storage rules + callable), completion notes, web display of the job record.
 - **Stage 8 — Matching**: matching on create, customer choice among stored candidates, re-search, offer and matching expiry sweep, candidate pickers on web and mobile.

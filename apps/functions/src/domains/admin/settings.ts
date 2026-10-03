@@ -26,7 +26,7 @@ export interface SettingsDeps {
 }
 type Done = Promise<{ ok: true; id: string }>;
 
-const SETTINGS_FIELDS = ["defaultCommissionPercent", "offerTimeoutMinutes", "matchingExpiryMinutes", "matchRadiusKm", "supportPhone"] as const;
+const SETTINGS_FIELDS = ["defaultCommissionPercent", "offerTimeoutMinutes", "matchingExpiryMinutes", "matchRadiusKm", "supportPhone", "cashAllowed"] as const;
 
 export async function updatePlatformSettings(
   deps: SettingsDeps,
@@ -38,6 +38,7 @@ export async function updatePlatformSettings(
     matchingExpiryMinutes: number;
     matchRadiusKm: number;
     supportPhone?: string;
+    cashAllowed: boolean;
   },
 ): Done {
   const { db } = deps;
@@ -49,6 +50,7 @@ export async function updatePlatformSettings(
     matchingExpiryMinutes: input.matchingExpiryMinutes,
     matchRadiusKm: input.matchRadiusKm,
     supportPhone: input.supportPhone ? (normalizeGhanaPhone(input.supportPhone) ?? null) : null,
+    cashAllowed: input.cashAllowed,
   };
 
   await db.runTransaction(async (tx) => {
