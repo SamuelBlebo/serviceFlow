@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { CancelPanel, ConfirmPanel, Detail, JobRecord, MatchingPanel, QuotePanel, StatusBadge, Timeline, priceText, whenText } from "../../features/bookings/BookingParts";
 import { RequestForm, type RequestValues } from "../../features/bookings/RequestForm";
+import { PaymentPanel } from "../../features/payments/PaymentPanel";
+import { useAuth } from "../../lib/auth/AuthProvider";
+import { type Payment, type PaymentStore, isEmulator, paymentStore, watchCashAllowed, watchPayment } from "../../lib/payments/payment-store";
 import { type Service, watchActiveServices } from "../../lib/admin/catalogue-store";
 import { FullPageSpinner } from "../../lib/auth/guards";
 import {
@@ -30,6 +33,10 @@ export interface BookingPageDeps {
   watchSteps?: typeof watchHistory;
   watchJobPhotos?: typeof watchPhotos;
   loadUrl?: typeof photoUrl;
+  payments?: PaymentStore;
+  watchPay?: typeof watchPayment;
+  watchCash?: typeof watchCashAllowed;
+  emulator?: boolean;
 }
 
 function Page({ title, children }: { title: string; children: React.ReactNode }) {
@@ -178,8 +185,15 @@ export function BookingDetailPage({
   watchSteps = watchHistory,
   watchJobPhotos = watchPhotos,
   loadUrl = photoUrl,
+  payments = paymentStore,
+  watchPay = watchPayment,
+  watchCash = watchCashAllowed,
+  emulator = isEmulator(),
 }: BookingPageDeps = {}) {
   const { id = "" } = useParams();
+  const { session } = useAuth();
+  const [payment, setPayment] = useState<Payment | null>(null);
+  const [cashAllowed, setCashAllowed] = useState(false);
   const [booking, setBooking] = useState<Booking | null | undefined>(undefined);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [photos, setPhotos] = useState<JobPhoto[]>([]);
@@ -190,6 +204,14 @@ export function BookingDetailPage({
     const unsubs = [watchOne(id, setBooking, fail), watchSteps(id, setHistory, fail), watchJobPhotos(id, setPhotos, () => setPhotos([]))];
     return () => unsubs.forEach((u) => u());
   }, [id, watchOne, watchSteps, watchJobPhotos]);
+
+  // The invoice exists from confirmation on; watch it (and whether cash is allowed) then.
+  const confirmed = booking?.status === BookingStatus.CUSTOMER_CONFIRMED || booking?.status === BookingStatus.PAID;
+  useEffect(() => {
+    if (!confirmed) return;
+    const unsubs = [watchPay(id, setPayment, () => setPayment(null)), watchCash(setCashAllowed)];
+    return () => unsubs.forEach((u) => u());
+  }, [id, confirmed, watchPay, watchCash]);
 
   if (error) return <Failure message={error} />;
   if (booking === undefined) return <FullPageSpinner />;
@@ -204,6 +226,14 @@ export function BookingDetailPage({
       <MatchingPanel booking={booking} store={store} />
       <QuotePanel booking={booking} store={store} />
       <ConfirmPanel booking={booking} store={store} />
+      <PaymentPanel
+        booking={booking}
+        payment={payment}
+        cashAllowed={cashAllowed}
+        accountPhone={session.status === "signedIn" ? session.user.phone : null}
+        store={payments}
+        emulator={emulator}
+      />
 
       <section className="rounded-xl border border-ink-100 bg-white p-5">
         <dl className="grid gap-4 sm:grid-cols-2">

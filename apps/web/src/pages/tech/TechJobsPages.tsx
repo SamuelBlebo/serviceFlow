@@ -21,6 +21,7 @@ import { FullPageSpinner } from "../../lib/auth/guards";
 import type { Booking, BookingContact } from "../../lib/bookings/booking-store";
 import { messageFromError } from "../../lib/errors";
 import { newRequestId } from "../../lib/request-id";
+import { type Payment, type PaymentStore, paymentStore, watchPayment } from "../../lib/payments/payment-store";
 import { type JobStore, jobStore, watchJob, watchJobContact, watchMyJobs } from "../../lib/technician/job-store";
 
 /** What the technician sees at each status. */
@@ -67,6 +68,8 @@ export interface TechJobDeps {
   watchOne?: typeof watchJob;
   watchContact?: typeof watchJobContact;
   clock?: () => number;
+  payments?: Pick<PaymentStore, "confirmCash">;
+  watchPay?: typeof watchPayment;
 }
 
 /** `/tech/jobs` — new requests with a countdown, then active, upcoming and done. */
@@ -146,7 +149,14 @@ const Alert = ({ message }: { message: string | null }) =>
   ) : null;
 
 /** `/tech/jobs/:id` — accept/decline, then one next step at a time (photos are added from the mobile app). */
-export function TechJobDetailPage({ store = jobStore, watchOne = watchJob, watchContact = watchJobContact, clock }: TechJobDeps = {}) {
+export function TechJobDetailPage({
+  store = jobStore,
+  watchOne = watchJob,
+  watchContact = watchJobContact,
+  clock,
+  payments = paymentStore,
+  watchPay = watchPayment,
+}: TechJobDeps = {}) {
   const { id = "" } = useParams();
   const { session } = useAuth();
   const uid = session.status === "signedIn" ? session.user.uid : "";
@@ -157,6 +167,8 @@ export function TechJobDetailPage({ store = jobStore, watchOne = watchJob, watch
   const step = useAction();
   const quote = useAction();
   const cancel = useAction();
+  const cash = useAction();
+  const [payment, setPayment] = useState<Payment | null>(null);
   const [declineReason, setDeclineReason] = useState("");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
@@ -168,6 +180,8 @@ export function TechJobDetailPage({ store = jobStore, watchOne = watchJob, watch
   useEffect(() => watchOne(id, setJob, () => setError("We couldn't load this job.")), [id, watchOne]);
   const status = job?.status;
   useEffect(() => (status ? watchContact(id, setContact) : undefined), [id, status, watchContact]);
+  const confirmed = status === BookingStatus.CUSTOMER_CONFIRMED || status === BookingStatus.PAID;
+  useEffect(() => (confirmed ? watchPay(id, setPayment, () => setPayment(null)) : undefined), [id, confirmed, watchPay]);
 
   if (error) return <p role="alert" className="px-4 py-10">{error}</p>;
   if (job === undefined) return <FullPageSpinner />;
@@ -295,6 +309,29 @@ export function TechJobDetailPage({ store = jobStore, watchOne = watchJob, watch
             {TECH_STEP_LABELS[next]}
           </Button>
           <Alert message={step.error} />
+        </section>
+      )}
+
+      {job.technicianId === uid && payment && confirmed && (
+        <section className="space-y-2 rounded-xl border border-ink-100 bg-white p-5" data-testid="job-payment">
+          {payment.status === "SUCCEEDED" ? (
+            <p className="font-medium text-brand-800">
+              Paid {formatMoney(payment.amountMinor, payment.currency)}
+              {payment.method === "CASH" ? " in cash" : " by Mobile Money"}. {payment.method === "CASH" ? "ServiceFlow's commission is taken from your wallet." : "Your earnings are in your wallet."}
+            </p>
+          ) : payment.method === "CASH" && payment.cashStatus === "AWAITING_TECHNICIAN" ? (
+            <>
+              <p className="text-ink-800">
+                The customer is paying <strong>{formatMoney(payment.amountMinor, payment.currency)}</strong> in cash. Confirm once you have it.
+              </p>
+              <Button busy={cash.busy} onClick={() => void cash.run((requestId) => payments.confirmCash({ requestId, bookingId: job.id }))}>
+                Confirm cash received
+              </Button>
+              <Alert message={cash.error} />
+            </>
+          ) : (
+            <p className="text-ink-700">Waiting for the customer to pay {formatMoney(payment.amountMinor, payment.currency)}.</p>
+          )}
         </section>
       )}
 

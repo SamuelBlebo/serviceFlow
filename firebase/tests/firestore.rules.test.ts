@@ -112,7 +112,7 @@ describe("deny by default", () => {
   it("closed collections are unreadable and unwritable for every role", async () => {
     // Bookings opened for participants and admins in Stage 7 (bookings.rules.test.ts).
     for (const db of [anon(), customer(), technician(), admin()]) {
-      await assertFails(getDoc(doc(db, "wallets/tech1")));
+      // wallets became readable by their owner and admins in Stage 11 (money.rules.test.ts).
       // adminActions became admin-readable in Stage 10 (see "admin-only reads").
       await assertFails(getDoc(doc(db, "someUnknownCollection/x")));
     }

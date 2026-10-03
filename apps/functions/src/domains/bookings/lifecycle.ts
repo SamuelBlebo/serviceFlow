@@ -16,6 +16,7 @@ import {
 } from "@serviceflow/shared";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { adminActionData, adminActionRef } from "../../lib/audit";
+import { createInvoice } from "../payments/payments";
 import { backToMatching, readSettingsInTx } from "./matching";
 import { type BookingDeps, assertAssignedTechnician, assertCustomer, readBooking, writeReceipt, writeTransition } from "./common";
 
@@ -159,7 +160,7 @@ async function readCommissionPercent(db: Firestore, serviceId: string, technicia
  * `bookings-confirmCompletion`: the customer confirms the work is done.
  * The server locks the final price (the agreed quote — never a client
  * figure; fixes D-2) and snapshots the commission percent (plan §5.5).
- * The payment invoice is created here from the Payments stage on.
+ * The payment invoice (`payments/{bookingId}`) is created in the same transaction.
  */
 export async function confirmCompletion(deps: BookingDeps, uid: string, input: { requestId: string; bookingId: string }): Done {
   const { db } = deps;
@@ -192,6 +193,8 @@ export async function confirmCompletion(deps: BookingDeps, uid: string, input: {
       "stats.completed": FieldValue.increment(1),
       updatedAt: FieldValue.serverTimestamp(),
     });
+    // The invoice, from the server-held final price (plan §14.2 step 1).
+    createInvoice(tx, db, { ...booking, id: ref.id }, booking.pricing.quotedMinor, percent);
     writeReceipt(tx, receipt, "confirmCompletion");
   });
   return ok(input.bookingId);

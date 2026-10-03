@@ -242,6 +242,16 @@ export const initiatePaymentInput = z
     path: ["msisdn"],
   });
 
+export type InitiatePaymentInput = z.input<typeof initiatePaymentInput>;
+
+/** The assigned technician confirms they received the customer's cash. */
+export const confirmCashPaymentInput = z.object({ requestId, bookingId: docId });
+export type ConfirmCashPaymentInput = z.input<typeof confirmCashPaymentInput>;
+
+/** Local emulator only: plays the payer approving or declining the Mobile Money prompt. */
+export const devMockPaymentOutcomeInput = z.object({ bookingId: docId, outcome: z.enum(["SUCCEEDED", "FAILED"]) });
+export type DevMockPaymentOutcomeInput = z.input<typeof devMockPaymentOutcomeInput>;
+
 export const requestPayoutInput = z.object({
   requestId,
   amountMinor: minorAmount.refine((v) => v > 0, { message: "Amount must be greater than zero" }),
@@ -383,6 +393,7 @@ export const updatePlatformSettingsInput = z.object({
   matchingExpiryMinutes: intBetween(SETTINGS_LIMITS.matchingExpiryMinutes, "Matching time"),
   matchRadiusKm: z.number().min(SETTINGS_LIMITS.matchRadiusKm.min).max(SETTINGS_LIMITS.matchRadiusKm.max),
   supportPhone: optionalInput(ghanaPhone),
+  cashAllowed: z.boolean(),
 });
 export type UpdatePlatformSettingsInput = z.input<typeof updatePlatformSettingsInput>;
 

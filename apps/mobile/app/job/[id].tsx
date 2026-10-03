@@ -6,6 +6,7 @@ import { ErrorText } from "../../src/components/fields";
 import { JobView } from "../../src/jobs/JobView";
 import { type Job, type JobContact, type JobPhoto, currentLocation, jobStore, watchContact, watchJob, watchPhotos } from "../../src/jobs/job-store";
 import { useNow } from "../../src/jobs/useNow";
+import { type Payment, paymentStore, watchPayment } from "../../src/payments/payment-store";
 import { pickPhoto } from "../../src/technician/photos";
 import { colors, space } from "../../src/theme";
 
@@ -30,6 +31,7 @@ export default function JobScreen() {
   const [contact, setContact] = useState<JobContact | null>(null);
   const [photos, setPhotos] = useState<JobPhoto[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [payment, setPayment] = useState<Payment | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -41,6 +43,7 @@ export default function JobScreen() {
   useEffect(() => {
     if (!id || !status) return;
     const unsubs = [watchContact(id, setContact), watchPhotos(id, setPhotos, () => setPhotos([]))];
+    if (status === "CUSTOMER_CONFIRMED" || status === "PAID") unsubs.push(watchPayment(id, setPayment));
     return () => unsubs.forEach((u) => u());
   }, [id, status]);
 
@@ -59,7 +62,8 @@ export default function JobScreen() {
           contact={contact}
           photos={photos}
           now={now}
-          store={jobStore}
+          store={{ ...jobStore, confirmCash: paymentStore.confirmCash }}
+          payment={payment}
           pickPhoto={pickPhoto}
           getLocation={currentLocation}
           openUrl={(urls) => void openFirst(urls)}

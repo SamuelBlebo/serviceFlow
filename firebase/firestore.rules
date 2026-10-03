@@ -15,7 +15,8 @@ rules_version = '2';
 // saved addresses (Stage 4); technician profiles and verification records
 // (Stage 6); read access to bookings, their history and private contact
 // (Stage 7); job photo records (Stage 9); admin reads of the audit log and
-// commission rules (Stage 10). Every other collection —
+// commission rules (Stage 10); payments, wallets and ledgers, read-only
+// (Stage 11). Every other collection —
 // including otpChallenges and rateLimits, which are server-only forever —
 // stays closed until the stage that introduces it.
 service cloud.firestore {
@@ -226,6 +227,35 @@ service cloud.firestore {
     match /serviceAreas/{areaId} {
       allow read: if resource.data.isActive == true || isAdmin();
       allow write: if false;
+    }
+
+    // ── Money (Stage 11) ────────────────────────────────────────────────
+    // Written only by Cloud Functions (verified provider results, technician
+    // cash confirmation). The client never marks anything paid.
+    match /payments/{bookingId} {
+      allow read: if isAdmin()
+        || (signedIn() && (resource.data.customerId == request.auth.uid || resource.data.technicianId == request.auth.uid));
+      allow write: if false;
+
+      // Attempt log (masked numbers): the payer and admins.
+      match /transactions/{attemptId} {
+        allow read: if isAdmin()
+          || (signedIn() && get(/databases/$(database)/documents/payments/$(bookingId)).data.customerId == request.auth.uid);
+        allow write: if false;
+      }
+      // Other subcollections (idempotency receipts) stay closed.
+    }
+
+    // The technician's wallet and ledger: theirs and admins'. Balances change
+    // only with a ledger entry, in the same Functions transaction.
+    match /wallets/{uid} {
+      allow read: if isSelf(uid) || isAdmin();
+      allow write: if false;
+
+      match /transactions/{entryId} {
+        allow read: if isSelf(uid) || isAdmin();
+        allow write: if false;
+      }
     }
 
     // ── Admin-only reads (Stage 10) ────────────────────────────────────

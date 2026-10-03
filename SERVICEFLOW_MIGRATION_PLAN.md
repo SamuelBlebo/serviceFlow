@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Status | **Stage 10 (Web dashboards) complete (2026-10-02). Stage 11 (Payments) not started.** Stage records: §20.5 (Stage 2), §21 (Stage 3), §22 (Stage 4), §23 (Stage 5), §24 (Stage 6), §25 (Stage 7), §26 (Stage 8), §27 (Stage 9), §28 (Stage 10). |
+| Status | **Stage 11 (Payments) complete (2026-10-02). Stage 12 (Wallet and payouts) not started.** Stage records: §20.5 (Stage 2), §21 (Stage 3), §22 (Stage 4), §23 (Stage 5), §24 (Stage 6), §25 (Stage 7), §26 (Stage 8), §27 (Stage 9), §28 (Stage 10), §29 (Stage 11). |
 | Date | 2026-09-30 |
 | Audited commit | `effae03` (main): "Initial commit: Home Service backend + WhatsApp booking slice" |
 | Scope | Audit and blueprint only. No code, data, Firebase or deployment changes were made |
@@ -1543,7 +1543,7 @@ src/
 | D2 | Phone OTP mechanism | Custom OTP → custom token (SMS or WhatsApp delivery) | Auth stage |
 | D3 | Firebase region | Measure; `europe-west1` is the likely choice | Before a real project is created |
 | D4 | Final price authority | **Decided (2026-10-02): technician quotes within the service range, customer accepts before work starts, admin can override (audited).** Built in Stage 7 | Bookings stage |
-| D5 | Cash jobs and commission | Post gross EARNING_CREDIT + COMMISSION_DEBIT; for cash, only the COMMISSION_DEBIT (receivable), netted against future earnings, with withdrawals blocked while negative | Payments stage |
+| D5 | Cash jobs and commission | **Decided (2026-10-02): post gross EARNING_CREDIT + COMMISSION_DEBIT; for cash (allowed via a setting), only the COMMISSION_DEBIT (receivable), netted against future earnings, with withdrawals blocked while negative.** Built in Stage 11 | Payments stage |
 | D7 | Does any production data or users exist on the legacy system? | Assumed **no**, so there is no data migration | Before the Auth stage |
 
 ---
@@ -1880,3 +1880,45 @@ Stage 9 was committed as `00f79f5` on `stage-9-tech-workflow`. Stage 10 is on `s
 - Editing match weights and payout minimums in the settings page (weights are expert configuration; the payout minimum arrives with payouts).
 - Admin user management (creating admins) — Production hardening (with MFA).
 - Large-scale customer search (the list loads the newest 200 and filters by name in the browser; server-side search can follow if needed).
+
+## 29. Stage 11: Payments (2026-10-02)
+
+Stage 10 was committed as `905146b` on `stage-10-web-dashboards`. Stage 11 is on `stage-11-payments`.
+
+Decision taken at the start of the stage: **D5** — electronic payments post the gross earning and a separate commission debit; cash (when enabled) posts only the commission debit, netted against future earnings, with withdrawals blocked while negative.
+
+### Scope delivered
+
+| Area | Delivered |
+| --- | --- |
+| Shared | `payments.ts`: `canInitiatePayment`, `maskMsisdn`, `ledgerEntriesForPayment` (the D5 rule as a pure function), network and status labels, `CashStatus`; payment document gains commission percent, attempts, last attempt, failure reason, cash status; `paymentTransactionDoc`; `settings.cashAllowed` (default on); inputs for cash confirmation and the emulator-only outcome control |
+| Functions | Invoice in the confirmation transaction; `payments-initiate` (owner, booking confirmed, attempt reservation, idempotency per request and per attempt, Mobile Money number validated — fixes D-5), `payments-confirmCash` (assigned technician), `webhooks-payments` (HMAC over raw body, dedupe, server re-verification, amount/currency/reference match), one-transaction finalisation (payment, booking PAID by SYSTEM, ledger + cached wallet), `schedules-reconcilePayments`. Mock provider rebuilt as a realistic async sandbox, emulator-only |
+| Rules + indexes | Payments, attempt log, wallets and ledgers readable by the right people only; no client writes. Index for reconciliation (status + last attempt) |
+| Web | Booking page payment panel (Mobile Money with account phone prefilled and network choice, cash when allowed, "approve the prompt" state, failure + retry, paid; emulator-only "Simulate approval/decline"); technician job page cash confirmation; admin payments page (status filter, commission total) and payment line on booking detail; settings page cash toggle |
+| Mobile | Customer booking screen payment card (Mobile Money / cash); technician job screen cash confirmation |
+
+### Verified results
+
+| Check | Result |
+| --- | --- |
+| `pnpm install --frozen-lockfile` | OK (no new dependencies) |
+| `pnpm typecheck` | 8/8 packages |
+| `pnpm test` | 500 pass: shared 204, firebase 13, functions 43, web 137, mobile 58, legacy API 45 (unchanged) |
+| `pnpm test:rules` | 73 pass (6 new: payments, attempt log, wallets and ledgers, webhook events) |
+| `pnpm test:integration` | 114 pass (16 new: invoice; Mobile Money end to end; duplicate and replayed webhooks; forged webhook body; amount mismatch; decline and retry; idempotent retry; pending re-verification; reconciliation; cash with commission owed; netting; cash switched off; ownership and card refusal; webhook over HTTP: 401 unsigned/tampered, 405, 200 signed) |
+| `pnpm build` | OK; web first-load chunk 70 KB gzipped; customer booking pages 4.9 KB gzipped (lazy) |
+| Mobile | `expo install --check` up to date; `expo export` Android bundle OK |
+| Browser end to end | Bookings 36/36 (now paying by Mobile Money through the sandbox: wallet credited the net; and a full cash job: only the commission debited; admin payments page), technicians 15/15, profiles 14/14, services 12/12, admin dashboards 15/15, auth 14/14 — all six suites in one run |
+
+### Found and fixed during the stage
+
+- **The legacy-style mock couldn't model real payments**: it succeeded synchronously and kept charges in memory, which doesn't survive between function instances. It now behaves like a Mobile Money provider (pending → signed webhook) with sandbox state in Firestore, so the real verification path is what's tested.
+- Legacy defect fixed in the replacement: **D-5** (pay without ownership check; payer phone taken from the request body).
+- **Two intermittent browser-test failures** (profile welcome step, bookings first step) were the dev server compiling pages from cold or loading data slower than the harness waited; the harness now waits for the page content first and every suite has a hard time limit. Several long verification runs were also interrupted by the machine sleeping; reruns passed.
+
+### Not in this stage
+
+- **Refunds** — moved to the Disputes stage, where who bears a refund (especially after a technician has withdrawn) is decided with dispute resolution.
+- Card payments and a real Mobile Money provider (Paystack, Hubtel, …) — need a provider account and Decision D3 (region); adding one is a new class + one factory case.
+- "Payment received" notifications — Notifications stage.
+- Payouts, withdrawal rules and nightly wallet reconciliation — Wallet and payouts stage (next).

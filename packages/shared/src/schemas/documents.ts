@@ -16,6 +16,7 @@ import {
   VerificationStatus,
   WalletTransactionType,
 } from "../enums";
+import { CashStatus } from "../payments";
 import { type BookingTimelineField, PriceSetBy, QuoteStatus, TIMELINE_FIELD } from "../bookings/booking";
 import { WEIGHTS } from "../matching/score";
 import { DEFAULT_TIMEZONE } from "../time";
@@ -198,6 +199,8 @@ export const platformSettingsDoc = z.object({
   matchWeights,
   minPayoutMinor: minorAmount,
   supportPhone: z.string().nullable(),
+  /** Decision D5: whether customers may pay technicians in cash. */
+  cashAllowed: z.boolean().default(true),
 });
 export type PlatformSettingsDoc = z.infer<typeof platformSettingsDoc>;
 
@@ -213,6 +216,7 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettingsDoc = {
   matchWeights: WEIGHTS,
   minPayoutMinor: 2000,
   supportPhone: null,
+  cashAllowed: true,
 };
 
 // ── Bookings ─────────────────────────────────────────────────────────────
@@ -328,10 +332,33 @@ export const paymentDoc = z.object({
   status: z.enum(PaymentStatus),
   provider: z.string().nullable(),
   providerReference: z.string().nullable(),
+  /** The percent the split was computed with (snapshot from the booking). */
+  commissionPercent: percent,
+  /** Electronic attempts so far (idempotency key = bookingId:attempt). */
+  attempts: z.number().int().nonnegative(),
+  lastAttemptAt: timestampLike.nullable(),
+  failureReason: z.string().nullable(),
+  /** Cash only: whether the technician has confirmed receiving it. */
+  cashStatus: z.enum(CashStatus).nullable(),
   createdAt: timestampLike,
+  updatedAt: timestampLike,
   paidAt: timestampLike.nullable(),
 });
 export type PaymentDoc = z.infer<typeof paymentDoc>;
+
+/** `payments/{bookingId}/transactions/{attempt}` — one per provider attempt (raw payloads redacted). */
+export const paymentTransactionDoc = z.object({
+  attempt: z.number().int().positive(),
+  method: z.enum(PaymentMethod),
+  provider: z.string(),
+  reference: z.string().nullable(),
+  status: z.enum(["PENDING", "SUCCEEDED", "FAILED"]),
+  msisdnMasked: z.string().nullable(),
+  network: z.enum(MobileMoneyNetwork).nullable(),
+  createdAt: timestampLike,
+  updatedAt: timestampLike,
+});
+export type PaymentTransactionDoc = z.infer<typeof paymentTransactionDoc>;
 
 export const walletDoc = z.object({
   availableMinor: z.number().int(), // may be negative only for commission owed on cash jobs (D5)

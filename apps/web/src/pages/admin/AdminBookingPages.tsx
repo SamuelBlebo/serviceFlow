@@ -20,6 +20,8 @@ import {
   watchPhotos,
 } from "../../lib/bookings/booking-store";
 import { messageFromError } from "../../lib/errors";
+import { type Payment, watchPayment, watchPayments } from "../../lib/payments/payment-store";
+import { PAYMENT_STATUS_LABELS, PaymentStatus } from "@serviceflow/shared";
 import { newRequestId } from "../../lib/request-id";
 
 export interface AdminBookingDeps {
@@ -30,6 +32,8 @@ export interface AdminBookingDeps {
   watchPrivate?: typeof watchContact;
   watchJobPhotos?: typeof watchPhotos;
   loadUrl?: typeof photoUrl;
+  watchPay?: typeof watchPayment;
+  watchPays?: typeof watchPayments;
 }
 
 const dateTime = (ms: number) => new Date(ms).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -199,19 +203,21 @@ export function AdminBookingDetailPage({
   watchPrivate = watchContact,
   watchJobPhotos = watchPhotos,
   loadUrl = photoUrl,
+  watchPay = watchPayment,
 }: AdminBookingDeps = {}) {
   const { id = "" } = useParams();
   const [booking, setBooking] = useState<Booking | null | undefined>(undefined);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [contact, setContact] = useState<BookingContact | null>(null);
   const [photos, setPhotos] = useState<JobPhoto[]>([]);
+  const [payment, setPayment] = useState<Payment | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fail = () => setError("We couldn't load this booking. Check your connection.");
-    const unsubs = [watchOne(id, setBooking, fail), watchSteps(id, setHistory, fail), watchPrivate(id, setContact, fail), watchJobPhotos(id, setPhotos, () => setPhotos([]))];
+    const unsubs = [watchOne(id, setBooking, fail), watchSteps(id, setHistory, fail), watchPrivate(id, setContact, fail), watchJobPhotos(id, setPhotos, () => setPhotos([])), watchPay(id, setPayment, () => setPayment(null))];
     return () => unsubs.forEach((u) => u());
-  }, [id, watchOne, watchSteps, watchPrivate, watchJobPhotos]);
+  }, [id, watchOne, watchSteps, watchPrivate, watchJobPhotos, watchPay]);
 
   if (error) return <p role="alert" className="mx-auto max-w-4xl px-4 py-10 text-ink-700">{error}</p>;
   if (booking === undefined) return <FullPageSpinner />;
@@ -253,6 +259,14 @@ export function AdminBookingDetailPage({
             {p.quoteRejectionReason ? ` · declined: “${p.quoteRejectionReason}”` : ""}
           </Detail>
           {p.commissionPercentSnapshot !== null && <Detail label="Commission">{p.commissionPercentSnapshot}%</Detail>}
+          {payment && (
+            <Detail label="Payment">
+              {PAYMENT_STATUS_LABELS[payment.status]} · {payment.method ? payment.method.replace("_", " ").toLowerCase() : "not started"} · commission{" "}
+              {formatMoney(payment.commissionMinor, payment.currency)}, technician {formatMoney(payment.technicianNetMinor, payment.currency)}
+              {payment.attempts > 0 ? ` · ${payment.attempts} attempt${payment.attempts === 1 ? "" : "s"}` : ""}
+              {payment.failureReason ? ` · ${payment.failureReason}` : ""}
+            </Detail>
+          )}
           {booking.cancellation && <Detail label="Cancellation">{`${booking.cancellation.actor}: ${booking.cancellation.reason}`}</Detail>}
         </dl>
       </section>
@@ -287,6 +301,78 @@ export function AdminBookingDetailPage({
         <h2 className="mb-3 font-semibold text-ink-900">History</h2>
         <Timeline entries={history} viewer="admin" />
       </section>
+    </div>
+  );
+}
+
+const PAYMENT_FILTERS: Array<PaymentStatus | "ALL"> = ["ALL", "PENDING", "SUCCEEDED", "FAILED"];
+
+/** `/admin/payments` — invoices and their status (read-only; refunds come with disputes). */
+export function AdminPaymentsPage({ watchPays = watchPayments }: AdminBookingDeps = {}) {
+  const [status, setStatus] = useState<PaymentStatus | "ALL">("ALL");
+  const [list, setList] = useState<Payment[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    setList(null);
+    return watchPays(status, setList, () => setError("We couldn't load payments. Check your connection."));
+  }, [status, watchPays]);
+  const total = (list ?? []).filter((p) => p.status === "SUCCEEDED").reduce((sum, p) => sum + p.commissionMinor, 0);
+
+  return (
+    <div className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <h1 className="text-2xl font-semibold tracking-tight text-ink-900">Payments</h1>
+        <div className="w-56">
+          <SelectField label="Status" value={status} onChange={(e) => setStatus(e.target.value as PaymentStatus | "ALL")}>
+            {PAYMENT_FILTERS.map((s) => (
+              <option key={s} value={s}>
+                {s === "ALL" ? "All" : PAYMENT_STATUS_LABELS[s]}
+              </option>
+            ))}
+          </SelectField>
+        </div>
+      </div>
+      {error ? (
+        <p role="alert">{error}</p>
+      ) : !list ? (
+        <FullPageSpinner />
+      ) : list.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-ink-200 p-8 text-center text-ink-600">No payments.</p>
+      ) : (
+        <>
+          <p className="text-sm text-ink-600" data-testid="commission-total">
+            Commission on paid jobs shown: {formatMoney(total)}
+          </p>
+          <div className="overflow-x-auto rounded-xl border border-ink-100 bg-white">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-ink-100 text-ink-500">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Booking</th>
+                  <th className="px-4 py-3 font-medium">Amount</th>
+                  <th className="px-4 py-3 font-medium">Commission</th>
+                  <th className="px-4 py-3 font-medium">Method</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.map((p) => (
+                  <tr key={p.id} className="border-b border-ink-50 last:border-0" data-testid={`payment-${p.id}`}>
+                    <td className="px-4 py-3">
+                      <Link to={`/admin/bookings/${p.id}`} className="font-mono text-brand-700">
+                        {p.id}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3">{formatMoney(p.amountMinor, p.currency)}</td>
+                    <td className="px-4 py-3">{formatMoney(p.commissionMinor, p.currency)}</td>
+                    <td className="px-4 py-3">{p.method ? p.method.replace("_", " ").toLowerCase() : "—"}</td>
+                    <td className="px-4 py-3">{PAYMENT_STATUS_LABELS[p.status]}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 }

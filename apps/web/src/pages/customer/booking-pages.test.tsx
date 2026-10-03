@@ -240,6 +240,7 @@ describe("admin bookings", () => {
         watchPrivate={staticWatch({ customerName: "Ama Serwaa", customerPhone: "+233241234567", directions: "Blue gate", ghanaPostGps: null, notes: null })}
         watchJobPhotos={staticWatch([])}
         loadUrl={async () => ""}
+        watchPay={staticWatch(null)}
       />,
       { session: signedIn({ admin: true }), path: "/admin/bookings/:id" },
     );

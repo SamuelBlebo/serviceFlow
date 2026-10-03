@@ -88,6 +88,7 @@ function PlatformSettingsForm({ settings, store }: { settings: PlatformSettingsD
     radius: String(settings.matchRadiusKm),
     phone: settings.supportPhone ? formatGhanaPhoneForDisplay(settings.supportPhone) : "",
   });
+  const [cashAllowed, setCashAllowed] = useState(settings.cashAllowed);
   const submit = useSubmit();
   const set = (k: keyof typeof values) => (e: { target: { value: string } }) => setValues((v) => ({ ...v, [k]: e.target.value }));
 
@@ -99,6 +100,7 @@ function PlatformSettingsForm({ settings, store }: { settings: PlatformSettingsD
       matchingExpiryMinutes: Number(values.matching),
       matchRadiusKm: Number(values.radius),
       supportPhone: values.phone.trim() || undefined,
+      cashAllowed,
     };
     const parsed = updatePlatformSettingsInput.safeParse({ requestId: "req_validateonly", ...input });
     if (!parsed.success) return submit.fail(firstIssue(parsed));
@@ -113,6 +115,10 @@ function PlatformSettingsForm({ settings, store }: { settings: PlatformSettingsD
         <TextField label="Matching time (minutes)" inputMode="numeric" value={values.matching} onChange={set("matching")} hint="Unmatched bookings are cancelled after this." />
         <TextField label="Search radius (km)" inputMode="decimal" value={values.radius} onChange={set("radius")} hint="Distance at which a technician scores zero." />
         <TextField label="Support phone" inputMode="tel" value={values.phone} onChange={set("phone")} />
+        <label className="flex items-center gap-2 self-end pb-3 text-ink-800">
+          <input type="checkbox" checked={cashAllowed} onChange={(e) => setCashAllowed(e.target.checked)} />
+          Customers may pay technicians in cash (commission is owed to ServiceFlow)
+        </label>
         <div className="space-y-2 sm:col-span-2">
           <FeedbackLine feedback={submit.feedback} />
           <Button type="submit" busy={submit.busy}>

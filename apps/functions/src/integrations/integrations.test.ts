@@ -1,6 +1,8 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
+import type { Firestore } from "firebase-admin/firestore";
 import { createPaymentProvider } from "./payments/factory";
+import { MOCK_SIGNATURE_HEADER, MockPaymentProvider, signMockWebhook } from "./payments/mock-payment-provider";
 import { parseMetaWebhook } from "./whatsapp/meta-cloud-api-provider";
 import { MockWhatsAppProvider } from "./whatsapp/mock-whatsapp-provider";
 import { verifyMetaSignature } from "./whatsapp/signature";
@@ -62,17 +64,26 @@ describe("mock providers", () => {
     expect(msg?.messageId).toMatch(/^mock_/);
   });
 
-  it("payment factory returns the mock and refuses unknown providers", async () => {
-    const provider = createPaymentProvider("mock");
-    const result = await provider.initiatePayment({
-      paymentId: "b1",
-      amountMinor: 20000,
-      currency: "GHS",
-      method: "MOBILE_MONEY",
-      idempotencyKey: "b1:1",
+  it("payment factory allows the mock only in the emulator and refuses unknown providers", () => {
+    const db = {} as Firestore;
+    expect(createPaymentProvider("mock", { db, emulator: true }).id).toBe("mock");
+    expect(() => createPaymentProvider("mock", { db, emulator: false })).toThrow(/only runs in the local emulator/);
+    expect(() => createPaymentProvider("paystack", { db, emulator: true })).toThrow(/not implemented/);
+  });
+
+  it("mock payment webhooks are accepted only with a valid signature over the exact body", () => {
+    const provider = new MockPaymentProvider({} as Firestore, "secret");
+    const body = JSON.stringify({ eventId: "evt_1", type: "charge.updated", reference: "mock_b1_1", status: "SUCCEEDED" });
+    const signature = signMockWebhook("secret", body);
+    expect(provider.parseWebhook(Buffer.from(body), { [MOCK_SIGNATURE_HEADER]: signature })).toEqual({
+      eventId: "evt_1",
+      type: "charge.updated",
+      reference: "mock_b1_1",
+      status: "SUCCEEDED",
     });
-    expect(result.status).toBe("SUCCEEDED");
-    await expect(provider.verifyPayment(result.reference)).resolves.toMatchObject({ amountMinor: 20000 });
-    expect(() => createPaymentProvider("paystack")).toThrow(/not implemented/);
+    expect(provider.parseWebhook(Buffer.from(body.replace("SUCCEEDED", "FAILED")), { [MOCK_SIGNATURE_HEADER]: signature })).toBeNull();
+    expect(provider.parseWebhook(Buffer.from(body), { [MOCK_SIGNATURE_HEADER]: signMockWebhook("wrong", body) })).toBeNull();
+    expect(provider.parseWebhook(Buffer.from(body), {})).toBeNull();
+    expect(provider.parseWebhook(Buffer.from("not json"), { [MOCK_SIGNATURE_HEADER]: signMockWebhook("secret", "not json") })).toBeNull();
   });
 });
