@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+/*
+ * ServiceFlow theme. Values mirror packages/shared/src/design-tokens.ts —
+ * src/theme.test.ts fails the build if they drift apart.
+ */
+@theme {
+  --font-sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --color-brand-50: #ECF7F2;
+  --color-brand-100: #D2EDE1;
+  --color-brand-200: #A6DBC4;
+  --color-brand-300: #6FC2A0;
+  --color-brand-400: #3AA37B;
+  --color-brand-500: #1B8660;
+  --color-brand-600: #0E6B4C;
+  --color-brand-700: #0B563E;
+  --color-brand-800: #0A4432;
+  --color-brand-900: #08372A;
+
+  --color-accent-400: #F2C14E;
+  --color-accent-500: #E0A526;
+  --color-accent-600: #B9841A;
+
+  --color-ink-50: #F7F8F8;
+  --color-ink-100: #EEF0F0;
+  --color-ink-200: #DDE1E1;
+  --color-ink-300: #C3C9C9;
+  --color-ink-400: #9AA3A3;
+  --color-ink-500: #6E7878;
+  --color-ink-600: #525B5B;
+  --color-ink-700: #3B4242;
+  --color-ink-800: #252A2A;
+  --color-ink-900: #151818;
+
+  --color-danger: #C23B32;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-white font-sans text-ink-900 antialiased;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-600;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

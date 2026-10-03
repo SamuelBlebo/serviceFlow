@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
-import { prisma, Role } from "@home-service/database";
-import { UnauthorizedError, ValidationError, isValidGhanaPhone, normalizeGhanaPhone } from "@home-service/shared";
+import { prisma, Role } from "@serviceflow/database";
+import { UnauthorizedError, ValidationError, isValidGhanaPhone, normalizeGhanaPhone } from "@serviceflow/shared";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "./jwt";
 import { issueOtp, verifyOtp } from "./otp.service";
 

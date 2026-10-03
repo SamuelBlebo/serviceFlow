@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import type { Role } from "@home-service/database";
+import type { Role } from "@serviceflow/database";
 import { env } from "../../config/env";
 
 export interface AccessTokenPayload {

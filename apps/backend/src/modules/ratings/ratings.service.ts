@@ -1,5 +1,5 @@
-import { prisma, BookingStatus } from "@home-service/database";
-import { ForbiddenError, NotFoundError, ValidationError } from "@home-service/shared";
+import { prisma, BookingStatus } from "@serviceflow/database";
+import { ForbiddenError, NotFoundError, ValidationError } from "@serviceflow/shared";
 
 /** Completes the customer journey (spec §6/§7): rate the technician after payment. */
 export async function submitRating(bookingId: string, customerUserId: string, score: number, comment?: string) {
@@ -11,7 +11,8 @@ export async function submitRating(bookingId: string, customerUserId: string, sc
   if (!booking || booking.deletedAt) throw new NotFoundError("Booking", bookingId);
   if (booking.customer.userId !== customerUserId) throw new ForbiddenError("This booking does not belong to you");
   if (!booking.technicianId) throw new ValidationError("Booking has no assigned technician");
-  if (![BookingStatus.CUSTOMER_CONFIRMED, BookingStatus.PAID].includes(booking.status)) {
+  const ratableStatuses: BookingStatus[] = [BookingStatus.CUSTOMER_CONFIRMED, BookingStatus.PAID];
+  if (!ratableStatuses.includes(booking.status)) {
     throw new ValidationError("You can only rate a booking after the job is confirmed complete");
   }
 

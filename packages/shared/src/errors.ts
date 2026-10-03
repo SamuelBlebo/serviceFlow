@@ -66,3 +66,55 @@ export class ConflictError extends AppError {
     this.name = "ConflictError";
   }
 }
+
+/**
+ * Firebase callable error codes (a subset of `FunctionsErrorCode`), declared
+ * here structurally so this package never imports a Firebase SDK. Cloud
+ * Functions map every AppError through this before throwing an HttpsError,
+ * so web and mobile receive one consistent error vocabulary.
+ */
+export type CallableErrorCode =
+  | "invalid-argument"
+  | "not-found"
+  | "unauthenticated"
+  | "permission-denied"
+  | "failed-precondition"
+  | "already-exists"
+  | "resource-exhausted"
+  | "internal";
+
+const CODE_MAP: Record<string, CallableErrorCode> = {
+  VALIDATION_ERROR: "invalid-argument",
+  NOT_FOUND: "not-found",
+  UNAUTHORIZED: "unauthenticated",
+  REAUTH_REQUIRED: "unauthenticated",
+  FORBIDDEN: "permission-denied",
+  INVALID_STATE_TRANSITION: "failed-precondition",
+  CONFLICT: "already-exists",
+  RATE_LIMITED: "resource-exhausted",
+  INTERNAL_ERROR: "internal",
+};
+
+export function toCallableErrorCode(err: unknown): CallableErrorCode {
+  if (err instanceof AppError) return CODE_MAP[err.code] ?? "internal";
+  return "internal";
+}
+
+export class RateLimitedError extends AppError {
+  constructor(message = "Too many requests — please wait and try again") {
+    super(message, { httpStatus: 429, code: "RATE_LIMITED" });
+    this.name = "RateLimitedError";
+  }
+}
+
+/**
+ * The action needs a fresh sign-in (e.g. sensitive admin actions older than
+ * RECENT_SIGN_IN_SECONDS). Clients detect `details.code === "REAUTH_REQUIRED"`
+ * and prompt the user to sign in again.
+ */
+export class ReauthenticationRequiredError extends AppError {
+  constructor(message = "Please sign in again to continue") {
+    super(message, { httpStatus: 401, code: "REAUTH_REQUIRED" });
+    this.name = "ReauthenticationRequiredError";
+  }
+}

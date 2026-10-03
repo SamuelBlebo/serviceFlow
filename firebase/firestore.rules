@@ -1,0 +1,286 @@
+rules_version = '2';
+
+// ServiceFlow Firestore rules.
+//
+// Principles (SERVICEFLOW_MIGRATION_PLAN.md §10):
+//  1. Deny by default — every collection opts in explicitly.
+//  2. Clients never write status, money, stats, verification, claims, commission
+//     or audit data; those are written only by Cloud Functions (Admin SDK
+//     bypasses these rules).
+//  3. Roles come ONLY from verified custom claims (request.auth.token), which
+//     only Cloud Functions can set.
+//
+// Open so far: the public service and service-area catalogues and platform
+// settings (Stage 2); account documents (Stage 3); customer profiles and
+// saved addresses (Stage 4); technician profiles and verification records
+// (Stage 6); read access to bookings, their history and private contact
+// (Stage 7); job photo records (Stage 9); admin reads of the audit log and
+// commission rules (Stage 10); payments, wallets and ledgers, read-only
+// (Stage 11). Every other collection —
+// including otpChallenges and rateLimits, which are server-only forever —
+// stays closed until the stage that introduces it.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn() && request.auth.token.admin == true;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // The write changes ONLY the listed top-level fields.
+    function onlyChanges(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    // ── Accounts ───────────────────────────────────────────────────────
+    // Created and maintained by Cloud Functions (sign-in, suspension).
+    // The owner may change only their display name, and only while ACTIVE;
+    // status, capabilities and suspension details are server-owned.
+    match /users/{uid} {
+      allow read: if isSelf(uid) || isAdmin();
+      allow update: if isSelf(uid)
+        && resource.data.status == "ACTIVE"
+        && onlyChanges(["displayName"])
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() <= 80;
+      allow create, delete: if false;
+    }
+
+    // ── Customer profiles (Stage 4) ───────────────────────────────────
+    // Self-owned, non-sensitive data written directly by the owner, so these
+    // rules ARE the validation. They mirror the shared zod schemas
+    // (customerDoc / customerAddressDoc / PROFILE_LIMITS).
+
+    function userDoc(uid) {
+      return get(/databases/$(database)/documents/users/$(uid));
+    }
+
+    // Owner, signed in, with an ACTIVE account (suspended users can't write).
+    function isActiveSelf(uid) {
+      return isSelf(uid) && userDoc(uid).data.status == "ACTIVE";
+    }
+
+    function stampedNow(field) {
+      return request.resource.data[field] == request.time;
+    }
+
+    // Letters (any script), spaces, apostrophes, dots, hyphens; starts with a
+    // letter; no leading/trailing/double spaces; 2-80 characters.
+    function isPersonName(v) {
+      return v is string
+        && v.size() >= 2 && v.size() <= 80
+        && v.matches("^[\\p{L}\\p{M}][\\p{L}\\p{M}' .-]*$")
+        && !v.matches(".*\\s$")
+        && !v.matches(".*\\s\\s.*");
+    }
+
+    function isText(v, min, max) {
+      return v is string && v.size() >= min && v.size() <= max;
+    }
+
+    function serviceArea(areaId) {
+      return get(/databases/$(database)/documents/serviceAreas/$(areaId));
+    }
+
+    function isValidAddress(d) {
+      return d.keys().hasOnly(["label", "directions", "ghanaPostGps", "areaId", "areaName", "location", "notes", "createdAt", "updatedAt"])
+        && d.keys().hasAll(["label", "directions", "ghanaPostGps", "areaId", "areaName", "location", "notes", "createdAt", "updatedAt"])
+        && isText(d.label, 1, 40)
+        && isText(d.directions, 5, 200)
+        && (d.ghanaPostGps == null || (d.ghanaPostGps is string && d.ghanaPostGps.matches("^[A-Z]{2}-[0-9]{3,4}-[0-9]{4}$")))
+        && (d.notes == null || isText(d.notes, 0, 300))
+        && d.areaId is string
+        && exists(/databases/$(database)/documents/serviceAreas/$(d.areaId))
+        && serviceArea(d.areaId).data.isActive == true
+        && d.areaName == serviceArea(d.areaId).data.name
+        && d.location is map
+        && d.location.keys().hasOnly(["lat", "lng"])
+        && d.location.lat is number && d.location.lat >= -90 && d.location.lat <= 90
+        && d.location.lng is number && d.location.lng >= -180 && d.location.lng <= 180;
+    }
+
+    match /customers/{uid} {
+      allow read: if isSelf(uid) || isAdmin();
+
+      allow create: if isActiveSelf(uid)
+        && request.resource.data.keys().hasOnly(["fullName", "defaultAddressId", "createdAt", "updatedAt"])
+        && request.resource.data.keys().hasAll(["fullName", "defaultAddressId", "createdAt", "updatedAt"])
+        && isPersonName(request.resource.data.fullName)
+        && stampedNow("createdAt") && stampedNow("updatedAt")
+        && (request.resource.data.defaultAddressId == null
+            || existsAfter(/databases/$(database)/documents/customers/$(uid)/addresses/$(request.resource.data.defaultAddressId)));
+
+      allow update: if isActiveSelf(uid)
+        && onlyChanges(["fullName", "defaultAddressId", "updatedAt"])
+        && isPersonName(request.resource.data.fullName)
+        && stampedNow("updatedAt")
+        && (request.resource.data.defaultAddressId == null
+            || existsAfter(/databases/$(database)/documents/customers/$(uid)/addresses/$(request.resource.data.defaultAddressId)));
+
+      allow delete: if false;
+
+      match /addresses/{addressId} {
+        allow read: if isSelf(uid) || isAdmin();
+
+        // The profile must exist (or be created in the same batch).
+        allow create: if isActiveSelf(uid)
+          && existsAfter(/databases/$(database)/documents/customers/$(uid))
+          && isValidAddress(request.resource.data)
+          && stampedNow("createdAt") && stampedNow("updatedAt");
+
+        allow update: if isActiveSelf(uid)
+          && isValidAddress(request.resource.data)
+          && request.resource.data.createdAt == resource.data.createdAt
+          && stampedNow("updatedAt");
+
+        // The current default can't be deleted unless the same batch moves the default elsewhere.
+        allow delete: if isActiveSelf(uid)
+          && getAfter(/databases/$(database)/documents/customers/$(uid)).data.defaultAddressId != addressId;
+      }
+    }
+
+    // ── Technicians (Stage 6) ─────────────────────────────────────────
+    // Public profile: readable by signed-in users (customers see name,
+    // photo, rating). Matching data — services, areas, availability — and
+    // verification status, stats and timestamps are written by Cloud
+    // Functions only. The technician may edit their bio, experience and
+    // profile photo, and go online/offline — online ONLY when VERIFIED.
+    match /technicians/{uid} {
+      allow read: if signedIn();
+      allow update: if isActiveSelf(uid)
+        && request.auth.token.tech == true
+        && onlyChanges(["bio", "yearsExperience", "photoPath", "isOnline", "updatedAt"])
+        && isText(request.resource.data.bio, 0, 500)
+        && request.resource.data.yearsExperience is int
+        && request.resource.data.yearsExperience >= 0 && request.resource.data.yearsExperience <= 60
+        && (request.resource.data.photoPath == null
+            || (request.resource.data.photoPath is string
+                && request.resource.data.photoPath.matches("^technicians/" + uid + "/profile/[^/]+$")))
+        && request.resource.data.isOnline is bool
+        && (request.resource.data.isOnline == false || resource.data.verificationStatus == "VERIFIED")
+        && stampedNow("updatedAt");
+      allow create, delete: if false;
+    }
+
+    // Identity documents and review history: the technician and admins only.
+    // Created by technicians-submitVerification, reviewed by admin-reviewTechnician.
+    match /technicianVerifications/{verificationId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.technicianId == request.auth.uid);
+      allow write: if false;
+    }
+
+    // ── Bookings ───────────────────────────────────────────────────────
+    // Every write goes through Cloud Functions (the state machine is the
+    // only writer of status). The customer, the offered or assigned
+    // technician (participantIds) and admins may read. List queries must
+    // filter on `participantIds array-contains <uid>` to be allowed.
+    function booking(bookingId) {
+      return get(/databases/$(database)/documents/bookings/$(bookingId)).data;
+    }
+
+    function isParticipant(data) {
+      return signedIn() && request.auth.uid in data.participantIds;
+    }
+
+    match /bookings/{bookingId} {
+      allow read: if isAdmin() || isParticipant(resource.data);
+      allow write: if false;
+
+      match /statusHistory/{entryId} {
+        allow read: if isAdmin() || isParticipant(booking(bookingId));
+        allow write: if false;
+      }
+
+      // Customer phone and directions: the customer, admins, and the
+      // assigned technician only once they have accepted the job.
+      match /private/{docId} {
+        allow read: if isAdmin()
+          || (signedIn() && booking(bookingId).customerId == request.auth.uid)
+          || (signedIn() && booking(bookingId).technicianId == request.auth.uid
+              && booking(bookingId).status in ["ACCEPTED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS", "COMPLETED"]);
+        allow write: if false;
+      }
+      // Before/after job photos: registered by bookings-addJobPhoto.
+      match /media/{mediaId} {
+        allow read: if isAdmin() || isParticipant(booking(bookingId));
+        allow write: if false;
+      }
+      // Other subcollections (e.g. idempotency receipts) stay closed.
+    }
+
+    // ── Public catalogue ───────────────────────────────────────────────
+    // Anyone (even signed out) may read ACTIVE services; admins see all.
+    // List queries must filter on isActive == true to be allowed.
+    // Writes go through an audited admin callable, never the client.
+    match /services/{serviceId} {
+      allow read: if resource.data.isActive == true || isAdmin();
+      allow write: if false;
+    }
+
+    match /serviceAreas/{areaId} {
+      allow read: if resource.data.isActive == true || isAdmin();
+      allow write: if false;
+    }
+
+    // ── Money (Stage 11) ────────────────────────────────────────────────
+    // Written only by Cloud Functions (verified provider results, technician
+    // cash confirmation). The client never marks anything paid.
+    match /payments/{bookingId} {
+      allow read: if isAdmin()
+        || (signedIn() && (resource.data.customerId == request.auth.uid || resource.data.technicianId == request.auth.uid));
+      allow write: if false;
+
+      // Attempt log (masked numbers): the payer and admins.
+      match /transactions/{attemptId} {
+        allow read: if isAdmin()
+          || (signedIn() && get(/databases/$(database)/documents/payments/$(bookingId)).data.customerId == request.auth.uid);
+        allow write: if false;
+      }
+      // Other subcollections (idempotency receipts) stay closed.
+    }
+
+    // The technician's wallet and ledger: theirs and admins'. Balances change
+    // only with a ledger entry, in the same Functions transaction.
+    match /wallets/{uid} {
+      allow read: if isSelf(uid) || isAdmin();
+      allow write: if false;
+
+      match /transactions/{entryId} {
+        allow read: if isSelf(uid) || isAdmin();
+        allow write: if false;
+      }
+    }
+
+    // ── Admin-only reads (Stage 10) ────────────────────────────────────
+    // The audit log and commission rules: admins read, Functions write.
+    match /adminActions/{actionId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /commissionRules/{ruleId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // ── Settings ───────────────────────────────────────────────────────
+    // Non-sensitive platform configuration (currency, time zone, limits).
+    // Secrets never live in Firestore.
+    match /settings/{docId} {
+      allow read: if signedIn() && docId in ["platform", "flags"];
+      allow write: if false;
+    }
+
+    // ── Everything else: closed ────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

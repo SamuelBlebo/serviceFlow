@@ -1,5 +1,5 @@
-import { prisma, BookingStatus, type Booking } from "@home-service/database";
-import { ForbiddenError, NotFoundError, ValidationError } from "@home-service/shared";
+import { prisma, BookingStatus, type Booking } from "@serviceflow/database";
+import { ForbiddenError, NotFoundError, ValidationError } from "@serviceflow/shared";
 import { findMatchingTechnicians } from "../matching/matching.service";
 import { resolveCommissionPercent, splitByCommission } from "../commission/commission.service";
 import type { BookingActor } from "./booking-state-machine";

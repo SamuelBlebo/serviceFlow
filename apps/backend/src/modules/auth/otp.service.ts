@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
-import { prisma } from "@home-service/database";
-import { UnauthorizedError, ValidationError } from "@home-service/shared";
+import { prisma } from "@serviceflow/database";
+import { UnauthorizedError, ValidationError } from "@serviceflow/shared";
 import { env } from "../../config/env";
 import { logger } from "../../config/logger";
 

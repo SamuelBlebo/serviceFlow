@@ -1,5 +1,5 @@
-import { prisma, VerificationStatus, BookingStatus } from "@home-service/database";
-import { NotFoundError, ValidationError } from "@home-service/shared";
+import { prisma, VerificationStatus, BookingStatus } from "@serviceflow/database";
+import { NotFoundError, ValidationError } from "@serviceflow/shared";
 
 export interface CreateTechnicianProfileInput {
   fullName: string;

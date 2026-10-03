@@ -1,122 +1,93 @@
-# Home Service
+# ServiceFlow
 
-Trusted help, right at your doorstep. A Ghana-first home-services marketplace: **customers** book through WhatsApp, **technicians** work from a dedicated mobile app, **admins** run the platform from a dashboard — all on one backend.
+A Ghana-first platform that makes it easy for customers to find, book, track and pay trusted service professionals — and gives those professionals simple tools to manage jobs and earnings.
 
-This repo is the **Phase 1 (Foundation) + a WhatsApp-to-booking vertical slice**, per the phased plan below. It is not the full platform yet — see [Roadmap](#roadmap).
+**One Firebase backend. One source of truth. Web + mobile + WhatsApp working together.**
 
-## What's actually implemented
+> **Status: Stage 11 (Payments) complete.** Phone and admin sign-in, account suspension, customer profiles with Ghana-style addresses, an admin-managed service catalogue, technician onboarding and verification, the booking lifecycle (technician quote → customer accepts, confirmation with a locked price and commission snapshot, cancellation, admin tools) matching (top 3 nearby available technicians, the customer chooses, offers and unmatched bookings expire automatically) and the technician's mobile job workflow (offers with a countdown, one-tap next step, on-site quote, call/navigate, before/after photos, completion notes) and the web dashboards (admin KPIs and live monitor, customers, technicians, audit log, platform settings, commission rules, service areas; technician jobs on the web; public information pages) and payments (Mobile Money through a signed-webhook sandbox, cash per Decision D5, wallet ledger entries on payment) run on the local Firebase emulators. Payouts, notifications and more are built stage by stage — see [SERVICEFLOW_MIGRATION_PLAN.md](SERVICEFLOW_MIGRATION_PLAN.md).
 
-- **Database**: a complete Prisma/PostgreSQL schema covering all the core models — users, customer/technician profiles, verification, services, bookings, the full booking state machine, payments, configurable commission, a technician wallet/ledger, payouts, ratings/reviews, disputes, notifications, messages, media, admin audit log, and WhatsApp conversation state. See `packages/database/prisma/schema.prisma`.
-- **Backend API** (`apps/backend`, Express + TypeScript): auth (phone+OTP for customers/technicians, email+password for admins, JWT access/refresh), RBAC middleware, services CRUD, technician self-service + admin verification workflow, the booking state machine with server-side transition validation, a deterministic matching engine, a payment provider abstraction (mock provider wired in, ready for Paystack/Flutterwave/Hubtel), configurable commission, a wallet ledger, and a WhatsApp adapter + conversation state machine that drives a customer from "Hi" through to a confirmed booking.
-- **Tests**: booking state machine, matching score math, commission split, JWT, RBAC middleware, and HTTP-level auth/validation/role-escalation tests (Vitest + Supertest). 60 tests, all passing.
-- **Not yet built in this slice**: the Technician App (React Native/Expo), the Admin Dashboard (web), disputes resolution UI, notifications delivery beyond the mock/log stubs, and real payment/WhatsApp provider credentials. The backend is architected so all of these plug into what's here — see Roadmap.
+## Repository layout
 
-## Why WhatsApp, not "just a chatbot"
-
-The WhatsApp integration is a thin adapter (`modules/whatsapp/whatsapp-provider.interface.ts`) behind an explicit conversation state machine (`modules/whatsapp/conversation-handlers.ts`) that calls the same Booking/Matching/Commission services the Technician App and Admin Dashboard will call. Swapping WhatsApp providers, or adding a customer-facing web/app surface later, doesn't touch business logic.
-
+```text
+apps/
+  web/          React + Vite + TypeScript + React Router + Tailwind — public site, customer, technician and admin areas
+  mobile/       Expo + Expo Router + React Native Firebase — technician-first app
+  functions/    Firebase Cloud Functions v2 — the trusted backend (bundled with esbuild into dist/)
+  backend/      LEGACY Express API — frozen; removed domain by domain (docs/LEGACY_REMOVAL.md)
+packages/
+  shared/       Pure domain logic + types + zod schemas: booking state machine, matching, commission,
+                wallet ledger, money (pesewas), phone, geo, time zones, design tokens
+  firebase/     SDK-agnostic Firebase contract: collection paths, callable registry, doc converters
+  database/     LEGACY Prisma schema — removed with apps/backend
+firebase/       Firestore + Storage security rules, indexes, and rules tests
+docs/           ARCHITECTURE.md, LEGACY_REMOVAL.md
 ```
-WhatsApp → WhatsApp Adapter → Conversation Service → Booking/Matching Service → Database
-```
 
-## Getting started
+How the pieces fit together: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-Requires Node 20+, pnpm, and PostgreSQL.
+## Prerequisites
+
+- **Node.js 22+** and **pnpm 11** (`corepack enable` picks up the pinned version)
+- **Java JDK 21+** — required by the Firebase Emulator Suite (e.g. [Eclipse Temurin 21](https://adoptium.net/))
+- For the mobile app on a device: Android Studio / an Android emulator (or Xcode on macOS). The app uses React Native Firebase, so it runs in an **Expo development build**, not Expo Go.
+
+The Firebase CLI is installed as a dev dependency — no global install needed.
+
+## Quick start (everything runs locally — no Firebase account needed)
 
 ```bash
 pnpm install
-cp .env.example .env        # edit DATABASE_URL and secrets
-pnpm db:generate             # generates the Prisma client — REQUIRED before anything else runs
-pnpm db:migrate               # creates the database schema
-pnpm db:seed                   # seeds the 3 launch services, a global commission rule, and sample Accra technicians
-pnpm --filter backend bootstrap:admin   # sets the seeded admin's password from ADMIN_BOOTSTRAP_EMAIL/PASSWORD
-pnpm dev                        # starts the backend on :4000 (WHATSAPP_PROVIDER=mock and PAYMENT_PROVIDER=mock by default)
+
+# Terminal 1 — builds the functions bundle, then starts Auth, Firestore, Functions,
+# Storage and Hosting emulators (Emulator UI: http://127.0.0.1:4000)
+pnpm emulators
+
+# Terminal 2 — seed services, 17 Accra service areas, settings and sample accounts
+pnpm seed
+
+# Optional — create a local administrator (prints a generated password)
+pnpm bootstrap:admin
+
+# Web app on http://localhost:5173 (copy apps/web/.env.example to apps/web/.env first)
+pnpm dev:web
 ```
 
-Run the test suite (after `db:generate` — the tests import the generated Prisma types/enums):
+The project id is `demo-serviceflow`. Firebase treats `demo-*` projects as emulator-only, so local work can never touch real cloud resources.
+
+### Signing in locally
+
+- **Customers / technicians** — go to `/login` and enter any Ghanaian number (e.g. `024 555 0101`). With the emulator's mock OTP sender, the 6-digit code is shown on the verify screen ("Local emulator code") and in the Functions logs. This dev code is returned **only** inside the Functions emulator; outside it the mock sender refuses to run. Seeded technicians sign in with `024 100 0001` … `024 100 0004`; the seeded customer (with a saved address) with `020 123 4567`. A brand-new number goes through a one-time welcome step (name + optional main address).
+- **Admins** — run `pnpm bootstrap:admin`, then sign in at `/admin/login` with the printed email and password. Manage the catalogue at `/admin/services`. Admin sessions last for the browser tab and end after 30 minutes of inactivity.
+
+### Mobile
 
 ```bash
-pnpm --filter backend test
-pnpm --filter @home-service/shared test
+cp apps/mobile/.env.example apps/mobile/.env
+pnpm --filter @serviceflow/mobile android   # first time: builds and installs the development client
+pnpm dev:mobile                              # afterwards: start Metro for the dev client
 ```
 
-### Trying the WhatsApp flow without a real WhatsApp Business account
+The Android emulator reaches the host's emulators at `10.0.2.2`; for a physical phone set `EXPO_PUBLIC_EMULATOR_HOST` to your computer's LAN IP. App identifiers (`dev.serviceflow.app`) and the bundled Firebase config files are **development placeholders**.
 
-With `WHATSAPP_PROVIDER=mock` (the default), `POST /api/v1/whatsapp/webhook` accepts simplified JSON instead of Meta's webhook shape, so you can walk the whole conversation with curl:
+## Checks
 
-```bash
-curl -X POST localhost:4000/api/v1/whatsapp/webhook -H 'Content-Type: application/json' \
-  -d '{"from":"0241234567","type":"text","text":"Hi"}'
+| Command | What it runs |
+| --- | --- |
+| `pnpm typecheck` | TypeScript across every package (including legacy) |
+| `pnpm test` | Unit/component tests: shared, firebase contract, functions, web, mobile, legacy API |
+| `pnpm test:rules` | Firestore + Storage security rules tests against the emulators (needs Java) |
+| `pnpm test:integration` | Cloud Functions integration tests (OTP sign-in, suspension, callables over HTTP) against the Auth, Firestore and Functions emulators (needs Java) |
+| `pnpm build` | Web production build + bundled Cloud Functions |
+| `pnpm --filter @serviceflow/mobile bundle:check` | Compiles the Android JS bundle with `expo export` |
 
-curl -X POST localhost:4000/api/v1/whatsapp/webhook -H 'Content-Type: application/json' \
-  -d '{"from":"0241234567","type":"interactive_reply","interactiveId":"1"}'   # picks service #1
+CI runs all of these on every push and pull request (`.github/workflows/ci.yml`).
 
-curl -X POST localhost:4000/api/v1/whatsapp/webhook -H 'Content-Type: application/json' \
-  -d '{"from":"0241234567","type":"text","text":"Kitchen pipe is leaking"}'
+## Configuration & secrets
 
-curl -X POST localhost:4000/api/v1/whatsapp/webhook -H 'Content-Type: application/json' \
-  -d '{"from":"0241234567","type":"location","location":{"lat":5.6494,"lng":-0.1531}}'
+- `apps/web/.env.example`, `apps/mobile/.env.example`: public client identifiers and emulator flags only.
+- `apps/functions/.env.example`: non-secret Functions parameters. **Secrets** (payment keys, WhatsApp tokens) live in Secret Manager via `firebase functions:secrets:set` and are only ever read by Cloud Functions.
+- Nothing secret is committed; `.env*` files other than examples are git-ignored.
 
-curl -X POST localhost:4000/api/v1/whatsapp/webhook -H 'Content-Type: application/json' \
-  -d '{"from":"0241234567","type":"interactive_reply","interactiveId":"1"}'   # "ASAP"
+## Legacy API
 
-# → booking is created, matched against seeded technicians, and candidates are listed
-curl -X POST localhost:4000/api/v1/whatsapp/webhook -H 'Content-Type: application/json' \
-  -d '{"from":"0241234567","type":"interactive_reply","interactiveId":"1"}'   # picks a technician → booking OFFERED
-```
-
-Outbound messages are logged to the console by the mock provider instead of actually sending WhatsApp messages. Switch `WHATSAPP_PROVIDER=meta_cloud_api` and set the `WHATSAPP_*` env vars to go live — no application code changes needed.
-
-## A note on this sandbox's verification (read if something looks unusual)
-
-This codebase was built in a network-restricted sandbox that blocks `binaries.prisma.sh`, the CDN Prisma's CLI downloads its query/schema engine binaries from. That means `prisma generate` / `prisma migrate` could not be run here — this is a sandbox networking policy, not a problem with your machine; both will work normally in a typical dev/CI environment with normal internet access.
-
-To still verify the work rather than ship it untested, two independent checks were done in this sandbox instead:
-
-1. **The relational schema** was hand-translated to raw SQL and applied directly to a real local PostgreSQL instance — all 25 tables, 18 enums, every foreign key, and a seed-equivalent data set (services, commission, technicians, service areas, a booking) loaded and queried successfully, including the haversine distance-based matching join.
-2. **The application code** was typechecked and unit/integration-tested (60 tests) against a temporary, clearly-labeled local stand-in for the generated Prisma client (matching `schema.prisma`'s enums exactly), which surfaced and let us fix several real bugs (a `jsonwebtoken` typing issue, unsafe `req.params` access, an over-broad `declaration: true` in the backend's tsconfig). That stand-in was then removed — `packages/database/src/index.ts` in this repo is the real, final implementation; running `pnpm db:generate` on a normal machine produces the actual generated client the code expects.
-
-Nothing about the sandbox restriction changes what you need to do to run this — it's the standard `pnpm install && pnpm db:generate` any Prisma project requires.
-
-## Architecture
-
-Monorepo, pnpm workspaces:
-
-```
-apps/
-  backend/                 Express + TypeScript API
-    src/
-      app.ts, server.ts     Express app assembly / entrypoint
-      config/                env validation (zod), logger
-      common/                auth+RBAC middleware, error handling, shared HTTP helpers
-      modules/
-        auth/                 phone+OTP, admin email/password, JWT
-        services/              service catalogue (admin-managed, never hard-coded)
-        technicians/            technician self-service + admin verification workflow
-        matching/                deterministic technician ranking
-        bookings/                 booking state machine + service
-        payments/                  PaymentProvider abstraction + mock implementation
-        commission/                configurable commission resolution/split
-        wallet/                     technician earnings ledger (append-only)
-        ratings/                     post-booking rating
-        whatsapp/                    WhatsAppProvider abstraction + conversation state machine
-packages/
-  database/                 Prisma schema + generated client (single source of truth for all models)
-  shared/                    cross-app utilities: Ghana phone normalization, geo distance, typed errors
-```
-
-**Booking state machine** (`modules/bookings/booking-state-machine.ts`) is the single source of truth for which status transitions are legal and who (customer/technician/admin/system) may trigger each one. Every status change in the app goes through it — nothing updates `Booking.status` directly. `REQUESTED → PAID` and similar arbitrary jumps are structurally impossible, not just discouraged.
-
-**Money** is never hard-coded: commission is resolved per booking (technician-specific → service-specific → global → env default, in that precedence order) and snapshotted onto the booking at confirmation time so later admin changes don't rewrite history. The wallet is an append-only ledger (`WalletTransaction`) — balances are a read-optimization derived from it, never written directly.
-
-**Matching** (`modules/matching/matching.service.ts`) only considers `VERIFIED`, currently-available technicians who serve the requested area and are on-shift; ranking itself is a deterministic weighted score (distance, rating, completed jobs, completion rate, cancellation rate, response rate) — no ML, by design, with the scoring function (`computeMatchScore`) kept pure and independently unit-tested.
-
-## Roadmap
-
-Following the spec's own phase ordering:
-
-- **Phase 2 — Technician**: React Native/Expo app consuming `modules/technicians` + `modules/bookings` (the API surface already supports registration, verification submission, availability, service areas, job accept/decline/status updates, wallet, and withdrawals).
-- **Phase 5 — Trust**: disputes resolution flow (the `Dispute` model and admin action audit log already exist; needs the customer complaint intake + admin review UI/endpoints).
-- **Phase 6 — Payments**: a real Mobile Money provider (Paystack/Flutterwave/Hubtel) implementing `PaymentProvider` — the abstraction, wallet crediting, and payout request/ledger are already in place.
-- **Phase 7 — Admin**: the web dashboard, consuming the `/admin` routes already exposed under `services`, `technicians`, and `bookings`.
-- **Notifications**: currently a log-only stub at the WhatsApp send layer; needs a real dispatcher fanning out to push/SMS/email per `Notification.channel`.
+The original Express + Prisma API lives in `apps/backend` and `packages/database`. It is **frozen** (no new features), still typechecks and its 45 tests still run as part of `pnpm test`, and it will be deleted domain by domain as each Firebase replacement lands. Running it still needs PostgreSQL — see the root `.env.example` and `pnpm dev:legacy`.

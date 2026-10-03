@@ -1,5 +1,5 @@
-import { prisma } from "@home-service/database";
-import { NotFoundError } from "@home-service/shared";
+import { prisma } from "@serviceflow/database";
+import { NotFoundError } from "@serviceflow/shared";
 
 /**
  * Services are entirely admin-managed data (spec §5/§28: "services must NOT

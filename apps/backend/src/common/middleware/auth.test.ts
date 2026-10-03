@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Request } from "express";
-import { Role } from "@home-service/database";
-import { AppError } from "@home-service/shared";
+import { Role } from "@serviceflow/database";
+import { AppError } from "@serviceflow/shared";
 import { authenticate, requireRole } from "./auth";
 import { signAccessToken } from "../../modules/auth/jwt";
 

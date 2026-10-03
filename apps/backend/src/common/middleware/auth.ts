@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
-import type { Role } from "@home-service/database";
-import { ForbiddenError, UnauthorizedError } from "@home-service/shared";
+import type { Role } from "@serviceflow/database";
+import { ForbiddenError, UnauthorizedError } from "@serviceflow/shared";
 import { verifyAccessToken } from "../../modules/auth/jwt";
 
 /**

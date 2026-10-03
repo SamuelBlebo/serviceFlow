@@ -4,7 +4,7 @@
  *   pnpm --filter backend bootstrap:admin
  */
 import bcrypt from "bcryptjs";
-import { prisma } from "@home-service/database";
+import { prisma } from "@serviceflow/database";
 import { env } from "../config/env";
 import { logger } from "../config/logger";
 

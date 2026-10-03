@@ -1,4 +1,4 @@
-import type { Role } from "@home-service/database";
+import type { Role } from "@serviceflow/database";
 
 // Augments Express's Request with the authenticated principal. Populated
 // exclusively by the `authenticate` middleware from a verified JWT — never

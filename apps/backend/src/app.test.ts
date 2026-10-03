@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import request from "supertest";
-import { Role } from "@home-service/database";
+import { Role } from "@serviceflow/database";
 import { createApp } from "./app";
 import { signAccessToken } from "./modules/auth/jwt";
 

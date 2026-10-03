@@ -1,5 +1,5 @@
-import { prisma, PaymentStatus, PaymentMethod, BookingStatus } from "@home-service/database";
-import { NotFoundError, ValidationError } from "@home-service/shared";
+import { prisma, PaymentStatus, PaymentMethod, BookingStatus } from "@serviceflow/database";
+import { NotFoundError, ValidationError } from "@serviceflow/shared";
 import { getPaymentProvider } from "./payment-provider.factory";
 import { creditEarningTx } from "../wallet/wallet.service";
 import { assertActorCanTransition } from "../bookings/booking-state-machine";

@@ -1,15 +1,19 @@
 {
-  "name": "@home-service/shared",
+  "name": "@serviceflow/shared",
   "version": "0.1.0",
   "private": true,
+  "description": "ServiceFlow pure domain logic, types and schemas — shared by web, mobile and Cloud Functions",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"
   },
+  "dependencies": {
+    "zod": "^4.6.5"
+  },
   "devDependencies": {
-    "typescript": "^5.5.4",
-    "vitest": "^2.0.5"
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.2"
   }
 }

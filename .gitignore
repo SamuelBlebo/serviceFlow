@@ -9,3 +9,32 @@ coverage/
 .turbo/
 prisma/dev.db
 generated/
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+storage-debug.log
+ui-debug.log
+database-debug.log
+pubsub-debug.log
+emulator-data/
+apps/functions/dist/
+
+# Env files (examples are committed)
+.env.*
+!.env.example
+
+# Expo / React Native
+.expo/
+apps/mobile/android/
+apps/mobile/ios/
+apps/mobile/google-services.json
+apps/mobile/GoogleService-Info.plist
+*.jks
+*.keystore
+
+# Vite
+apps/web/dist/
+*.tsbuildinfo
+apps/mobile/.expo-export-check/

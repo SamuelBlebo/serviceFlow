@@ -1,4 +1,4 @@
-import type { PreferredTime } from "@home-service/database";
+import type { PreferredTime } from "@serviceflow/database";
 
 export interface CreateBookingRequestInput {
   serviceId: string;

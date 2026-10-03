@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { Role } from "@home-service/database";
+import { Role } from "@serviceflow/database";
 import { asyncHandler } from "../../common/http/asyncHandler";
 import { authenticate, requireRole } from "../../common/middleware/auth";
 import * as servicesController from "./services.controller";
